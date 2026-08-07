@@ -1,0 +1,50 @@
+# Prompt Engineering Reference
+
+## Part 1 — Claude (default target)
+
+These are Anthropic's durable, documented prompting techniques — the ones that don't change from model to model. Apply the ones relevant to the task; don't stack all of them onto a simple prompt.
+
+> **For anything version-specific, consult the `claude-api` skill — do not hardcode it here.** Model IDs, the current model lineup, the `effort` parameter and its levels, `budget_tokens` deprecation, response-prefill restrictions, the Structured Outputs parameter shape, and prompt-caching limits (breakpoint count, minimum cacheable tokens, TTLs) all shift between releases and are model-dependent. The `claude-api` skill (its `shared/models.md`, `shared/prompt-caching.md`, and `shared/model-migration.md`) is the authoritative, maintained source — invoke it (or, per SKILL.md Step 3, WebSearch Anthropic's official docs) whenever a prompt's correctness depends on a current API value. Hardcoding those numbers here is how this file rots; a flat "min cacheable block = 1024 tokens" line was already wrong (it's model-dependent) before this note replaced it.
+
+**Be clear, explicit, and direct.** State exactly what you want, the context/motivation behind it, and any constraints. Claude cannot infer unstated preferences — write instructions the way you'd brief a new hire who has zero context on the task, with nothing assumed.
+
+**Use XML tags to structure the prompt.** Claude was trained to pay close attention to XML structure. Common tags: `<instructions>`, `<context>`, `<document>`, `<example>`, `<examples>`, `<formatting>`, `<thinking>`, `<answer>`. Nest tags for hierarchy; keep tag names consistent between where you define them and where you refer to them later in the prompt.
+
+**Give Claude a role via the system prompt.** A well-specified role ("You are a senior security auditor reviewing...") sharpens tone, depth, and focus far more than folding the same framing into the user turn.
+
+**Use multishot examples.** 3-5 diverse, relevant examples wrapped in `<example>` tags inside an `<examples>` block is one of the most reliable ways to pin down output format and edge-case handling. Cover edge cases in the examples, not just the happy path.
+
+**Let Claude think.** Current Claude models reason before answering, tuned by an effort/thinking control rather than manual token budgets — so the lever is *how much* to let it think, not whether to bolt on inline "think step by step" scaffolding. Multishot examples that include `<thinking>` blocks still teach the reasoning *style* even when the model thinks natively. The exact parameter names, levels, and which models accept what move between releases — check the `claude-api` skill (or Step 3 WebSearch) before writing thinking/effort config into a prompt, and note that forcing tool use can suppress the thinking block, so don't rely on both at once without verifying current behavior.
+
+**Control output format by instructing directly.** State the exact format you need (length, structure, tone) rather than describing it vaguely, and pair with examples for anything format-sensitive. To skip preamble, say so ("Respond directly without preamble; do not start with 'Here is...'"). For schema-guaranteed output (JSON, classification labels), current models use a structured-outputs feature or a tool call with an enum field rather than response prefilling — prefill is restricted on current-generation models. The exact feature/parameter and which models restrict prefill are version-specific: confirm via the `claude-api` skill before relying on them.
+
+**Chain complex prompts into steps.** Break a multi-stage task into separate prompts/turns where each step's output feeds the next, rather than one large prompt trying to do everything at once. Improves reliability on complex pipelines.
+
+**Phrase instructions positively.** Say what Claude should do, not just what it shouldn't. "Respond in prose, not lists" beats "Don't use bullet points" — the latter can backfire.
+
+**Long-context placement matters.** For prompts with long documents/data, put the long content near the top and the actual instructions/question at the bottom — this consistently improves attention to the instructions. For very long documents, ask Claude to quote relevant snippets before answering.
+
+**Structure for prompt caching.** Place stable, reusable content (system prompt, static context/instructions) first, and put per-request variable content (the actual query, timestamps, session-specific data) last — the same ordering as the long-context advice above, but done specifically so a cache hit can cover the entire stable prefix. Caching is a prefix match: a single byte change anywhere in the prefix invalidates everything after it. Worth doing whenever the same system prompt/context is reused across many requests — it's a direct cost and latency lever. The hard numbers (max breakpoints, minimum cacheable prefix, TTLs) are model-dependent and change — get them from the `claude-api` skill's `shared/prompt-caching.md`, not from memory.
+
+**Tool use / agentic prompting.** Tool (function) definitions need clear names, descriptions, and parameter docs written as if for a new engineer with no other context — ambiguity here causes more failures than ambiguity in the main instructions. Be prescriptive about *when* to call a tool, not just what it does; recent models reach for tools more conservatively, so trigger conditions in the description measurably raise the should-call rate. Verify current tool-use prompting specifics live if the task is agent/tool-heavy (Step 3 / `claude-api` skill), since this surface evolves quickly.
+
+**Steer parallel vs. sequential tool calls explicitly.** Current models run independent tool calls in parallel by default. If a prompt needs stricter sequencing (e.g. dependent parameter values) or needs parallelism pushed higher, say so explicitly rather than assuming the default matches the task.
+
+**Balance autonomy against safety explicitly for agentic prompts.** For any prompt that gives a model tools with real side effects, state which categories of action need user confirmation before proceeding (destructive operations, hard-to-reverse operations, anything visible to others) versus which are safe to take autonomously (local, reversible actions). Don't leave this implicit — it's one of the most reliable levers for preventing an agent from taking a destructive shortcut around an obstacle.
+
+**Curb over-engineering and over-delegation in agent prompts.** Two failure modes are common enough to be worth a standing instruction when relevant: (1) creating unrequested abstractions, extra files, or defensive code for cases that can't happen — scope the prompt to "only what's directly requested," and (2) over-using subagents/sub-tasks for things a direct action would handle faster. Both are promptable down with an explicit instruction; don't assume the model self-limits.
+
+**For long-horizon or multi-session agent work, prompt for explicit state tracking.** Structured state (a JSON task/test list) plus freeform progress notes plus git-as-checkpoint is the documented pattern for letting an agent resume work across context windows or sessions without losing track of what's done.
+
+## Part 2 — Other model families (verify live before trusting any of this)
+
+These are starting-point hints only, meant to tell you *what to search for* — not facts to apply directly. Model vendors change these conventions often, and new model families ship after this skill's own knowledge cutoff. Always WebSearch the vendor's current official docs per SKILL.md Step 3 before writing the prompt.
+
+- **Reasoning models generally (OpenAI GPT-5.x/o-series, Gemini thinking variants, and similar)**: don't add manual "think step by step" instructions — these models reason internally before responding, and layering explicit CoT on top is redundant and can hurt. Reasoning is now controlled by an effort/thinking-budget parameter, so the real question is *how much* reasoning to spend, not whether to elicit it. Few-shot examples are also less often necessary for these models than for non-reasoning ones — try without first. Still verify current guidance per Step 3, since this is model-specific and evolving.
+- **OpenAI (GPT/o-series/ChatGPT/API)**: check current guidance on system vs. developer message roles, reasoning-effort/verbosity controls, structured outputs / JSON schema mode, and whether markdown or plain prose is currently preferred in instructions. Recent GPT-5.x guidance frames this as "outcome-first" prompting — define the target outcome, success criteria, constraints, available context, and explicit stopping/completion rules, then let the model choose its own path, rather than prescribing steps. Shorter outcome-first prompts generally beat process-heavy prompt stacks.
+- **Google Gemini**: check the current system-instruction field conventions, thinking-budget/thinking-config controls, and multimodal prompt structuring guidance. Recent Gemini 3 guidance: keep temperature at its default of 1.0 (don't lower it — reasoning is tuned for the default, and lowering it can cause looping or degraded performance on complex reasoning), and place the core request and negative constraints at the very END of the prompt, since the model has been observed to drop early negative/format/quantitative constraints on complex, long prompts.
+- **Meta Llama**: check the current chat template and special-token conventions for the specific Llama version in use (these differ across major versions) and whether a system prompt is supported/recommended for that variant.
+- **Mistral**: check current system-prompt conventions and any JSON-mode / function-calling specifics for the model variant named.
+- **xAI Grok, DeepSeek, Qwen, and any other named model**: no assumptions — search for that model's own current prompting docs before drafting.
+
+For every non-Claude target, prefer the vendor's official documentation and changelog over third-party blog posts or forum threads, and note in the rationale (SKILL.md Step 5) if something you found changed the approach.
