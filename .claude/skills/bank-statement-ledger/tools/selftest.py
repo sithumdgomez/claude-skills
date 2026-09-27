@@ -78,7 +78,11 @@ def unit_tests(root):
     import inventory
     periods = {"Statement starts 18 January 2025\nStatement ends 10 March 2025": (dt.date(2025, 1, 18), dt.date(2025, 3, 10)),
                "Period 1 Feb 2023 - 31 May 2023": (dt.date(2023, 2, 1), dt.date(2023, 5, 31)),
-               "Statement Period 01/07/2023 to 31/12/2023": (dt.date(2023, 7, 1), dt.date(2023, 12, 31))}
+               "Statement Period 01/07/2023 to 31/12/2023": (dt.date(2023, 7, 1), dt.date(2023, 12, 31)),
+               "Period 1Sep2025-30Nov2025": (dt.date(2025, 9, 1), dt.date(2025, 11, 30)),
+               "Period 1Sep2025 30Nov2025": (dt.date(2025, 9, 1), dt.date(2025, 11, 30)),
+               "Period 1Jun202530Nov2025": (dt.date(2025, 6, 1), dt.date(2025, 11, 30)),
+               "01Jun 2025OPENINGBALANCE 21.46CR": (None, None)}
     bad = {t: inventory.detect_period(t) for t, v in periods.items() if inventory.detect_period(t) != v}
     check("statement periods are found in the usual layouts, including NAB's starts/ends lines", not bad, str(bad))
     import classify
