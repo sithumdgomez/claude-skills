@@ -191,6 +191,14 @@ Full strategy: `reference/model-and-tokens.md`. The short version:
 - **Payments to a credit card, PayPal or Wise** are transfers to an account missing
   from the set. The real spending is on that account's statements (Wise and PayPal let you
   download them). Add them, or use type Outside account.
+- **Swaps (barter) and free work never appear in bank statements.** The ATO generally treats a
+  business swap like a sale, at the value of what was received. Keep swaps on a separate list
+  for the accountant (who, when, what was exchanged, rough value); never put their estimated
+  values in the ledger. Free work has no income to record. Part-payments are simply income
+  when each one lands.
+- **A change of structure (sole trader -> company)** ends the sole trader's ledger on the
+  cut-over date. Company money goes through the company's own accounts and books (usually
+  accounting software with bank feeds); ask when it started and which accounts it uses.
 - **Afterpay and other buy-now-pay-later services** give no statements, only an order history
   (often just screenshots). The instalments on the bank statement are the amounts; never
   take amounts from the order history. It only matters for business purchases: the owner keeps
