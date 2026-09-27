@@ -84,6 +84,9 @@ def load_accounts() -> dict[str, dict]:
         use = r["default_use"].strip().lower()
         if use not in {"business", "personal"}:
             die(f"accounts.csv: {r['account_id']} default_use must be business or personal")
+        if not re.fullmatch(r"\d{4}", r["last4"].strip()):
+            die(f"accounts.csv: {r['account_id']} last4 must be the last 4 digits of the account number "
+                "(transfer matching needs it)")
         r["default_use"] = use
         out[r["account_id"]] = r
     return out

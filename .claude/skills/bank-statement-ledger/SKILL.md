@@ -47,7 +47,7 @@ the other project folders, which live in the user's project folder once it's set
 | Situation | Do this |
 |---|---|
 | New project | `python ${CLAUDE_SKILL_DIR}/tools/init_project.py ~/bookkeeping`, then follow the **Session 1** prompt in `reference/prompts.md` |
-| Statements already sitting in another folder | `python3 scripts/import_statements.py "<folder>" --survey` (drafts `config/accounts.csv`), then run it again without flags for a dry run, then with `--apply`. It copies each file into `00_raw/<bank>/<account>/`, working out the account from the statement header, the file name, or the folder names |
+| Statements already sitting in another folder | `python3 scripts/import_statements.py "<folder>" --survey` (drafts `config/accounts.csv`), then run it again without flags for a dry run, then with `--apply`. It copies each file into `00_raw/<bank>/<account>/`, working out the account from the statement header, the file name, or the folder names. `--show "<file>"` explains a file it can't place |
 | Continuing | Read the project's `PROGRESS.md` and do the next unticked step. Nothing else. |
 | New financial year added to a finished project | See **Adding a year** below |
 | "Show me how it works" | `python ${CLAUDE_SKILL_DIR}/tools/make_demo.py /tmp/demo-books`, then `parse_all.py` and `run_all.py` inside it |
@@ -197,6 +197,13 @@ Full strategy: `reference/model-and-tokens.md`. The short version:
   out which account a statement belongs to from its transactions; only from its header, file
   name or folder. `import_statements.py` reads PDF headers up to the first transaction and
   only the "account" column of CSVs, for this reason.
+- **Some statements show no account number in their header** (seen with CommBank
+  downloads). `import_statements.py --survey` then groups them by bank and account name from
+  the file and folder names ("CBA_Business-Saving_2023-02_to_2023-05.pdf" → CommBank,
+  Business Saving) and leaves `last4` empty for the owner to fill in. Run `--show "<file>"` to
+  see the masked page-1 text and where the script thinks the header ends. In file names, "_"
+  counts as part of a word for `\b`, so match bank names against `path_words()`, never the raw
+  path.
 - **pdfplumber needs a text layer.** A scanned statement (text_layer N in the inventory)
   needs an e-statement or CSV from the bank. OCR misreads digits.
 

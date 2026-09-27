@@ -17,9 +17,11 @@ in this job.
 - **Do:** create the project with `tools/init_project.py`. Copy every statement into
   `00_raw/<bank>/<account>/` and make the folder read-only (`chmod -R a-w 00_raw`).
   If the statements already sit in another folder, let the script sort them:
-  1. `python3 scripts/import_statements.py "<folder>" --survey` lists the account endings
-     and banks it finds, and drafts `config/accounts.csv`. The owner replaces each CHOOSE
-     with business or personal.
+  1. `python3 scripts/import_statements.py "<folder>" --survey` lists the accounts it finds
+     (by account ending, or by bank and account name when the files show no number), and
+     drafts `config/accounts.csv`. The owner replaces each CHOOSE with business or personal
+     and fills in any empty `last4` from a statement. For a file that shows no number,
+     `--show "<file>"` prints its masked page-1 text so Claude can see why.
   2. Run the same command without `--survey` for a dry run that shows where every file
      would go, then again with `--apply` to copy them. The source folder is never changed.
   3. Drag any UNSORTED files into place by hand.

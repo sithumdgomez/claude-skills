@@ -3,17 +3,24 @@
   python scripts/import_statements.py "<source folder>" --survey   # 1. what accounts are in there?
   python scripts/import_statements.py "<source folder>"            # 2. dry run: show where each file would go
   python scripts/import_statements.py "<source folder>" --apply    # 3. copy them
+  python scripts/import_statements.py "<source folder>" --show "<file>"   # why wasn't a file's number found?
 
 It works out each file's account from, in order of strength:
-  - the account number's last 4 digits in the statement header (first 25 lines of page 1 / the CSV)
+  - the account number's last 4 digits in the statement header (page 1 up to the first
+    transaction line / the CSV's account column)
   - the last 4 digits in the file name ("Statement_12345678_2023.pdf")
-  - the bank name and account name in the folder path ("CommBank/Business/...")
+  - the bank and account name in the folder and file names ("CommBank/Business/...",
+    "CBA_Business-Saving_2023-02_to_2023-05.pdf")
 A file it can't place with confidence is left in the source and listed as UNSORTED -
 drag those into the right 00_raw/ folder yourself.
 
---survey lists the account endings and banks it finds, and if config/accounts.csv has no
-accounts yet, writes a draft there. Fill in default_use (business or personal) before
-the dry run - the script will not guess that.
+--survey lists the accounts it finds (by account ending, or by bank + account name when the
+files show no number) and writes a draft config/accounts.csv if there are no accounts yet
+(or only an untouched draft). Fill in default_use (business or personal) and any missing
+last4 before the dry run - the script will not guess those.
+
+--show prints page 1 of one file (masked) and marks where the script thinks the header ends,
+to work out why an account number wasn't found. Safe to paste into Claude.
 
 Copies only: the source folder is never changed. Files already imported (same content)
 are skipped, so re-running is safe. Everything printed or written is masked to last 4 digits.
@@ -66,10 +73,22 @@ KNOWN_BANKS = [
 _BANK_RX = [(name, re.compile(rx, re.I)) for name, rx in KNOWN_BANKS]
 _ACCT_LINE = re.compile(r"account|acct|a/c|\bacc\b|card|number|\bbsb\b", re.I)
 # A transaction line: starts with a date and carries an amount. The header ends there.
-_TXN_LINE = re.compile(r"^\s*(\d{1,2}[/.\-]\d{1,2}|\d{1,2}\s+[A-Za-z]{3})\b.*\d\.\d{2}")
+# The month must be a real month, so an address like "5 The Crescent" next to "Closing balance
+# $1,234.56" does not end the header before the account number.
+_MONTH = (r"(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?"
+          r"|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)")
+_TXN_LINE = re.compile(rf"^\s*(\d{{1,2}}[/.\-]\d{{1,2}}|\d{{1,2}}\s+{_MONTH})\b.*\d\.\d{{2}}", re.I)
 _DIGIT_SEQ = re.compile(r"(?<![\d.,/])\d[\d \-]{3,}\d(?![\d.,/])")
 _MASKED = re.compile(r"(?:[xX*•]{2,}|ending(?: in)?)\s?(\d{4})(?!\d)", re.I)
 _BSB = re.compile(r"^\d{3}-?\d{3}$")
+# For --show only: digit runs that mask() misses, e.g. letter-spaced text "0 6 2 0 0 0 1 2 3 4".
+_ANY_DIGITS = re.compile(r"(?<![\d.,])\d(?:[ \-]?\d){5,}(?![\d.,])")
+# Words in file/folder names that say nothing about which account it is.
+_NOISE = {"statement", "statements", "estatement", "estatements", "stmt", "export", "exports", "download",
+          "downloads", "transactions", "history", "copy", "final", "new", "to", "from", "and", "of", "the",
+          "for", "period", "page", "pdf", "csv", "bank", "banking", "account", "accounts", "acc", "acct"}
+_SHORT = {"CommBank": "CBA", "St.George": "STG", "Bank of Melbourne": "BOM", "Great Southern Bank": "GSB",
+          "UnknownBank": "BANK"}
 
 
 def norm(s: str) -> str:
@@ -116,6 +135,64 @@ def banks_in(text: str) -> list[str]:
     return [name for name, rx in _BANK_RX if rx.search(text)]
 
 
+def path_words(rel: Path) -> str:
+    """A path as plain words: "FY2023/CBA_Business-Saving.pdf" -> "FY2023 CBA Business Saving pdf".
+    (\\b in the bank patterns treats "_" as part of a word, so "CBA_" would not match.)"""
+    return re.sub(r"[^A-Za-z0-9]+", " ", rel.as_posix()).strip()
+
+
+def account_label(rel: Path) -> str:
+    """What the folder and file names call the account, without bank, dates and filler:
+    "FY2023/CBA_Business-Saving_2023-02_to_2023-05.pdf" -> "Business Saving". "" if nothing is left."""
+    text = re.sub(r"[^A-Za-z0-9]+", " ", " ".join(rel.parent.parts + (rel.stem,)))
+    for _, rx in _BANK_RX:
+        text = rx.sub(" ", text)
+    text = re.sub(r"(?<=[a-z])(?=[A-Z])", " ", text).lower()   # BusinessSaving -> business saving
+    words = []
+    for w in text.split():
+        if (len(w) < 2 or re.search(r"\d", w) or w in _NOISE or re.fullmatch(_MONTH, w)
+                or re.fullmatch(r"[x*]+", w) or w in words):
+            continue
+        words.append(w)
+    return " ".join(w.capitalize() for w in words)
+
+
+def short_id(bank: str, label: str = "", l4: str = "") -> str:
+    code = _SHORT.get(bank, norm(bank).upper()[:8] or "BANK")
+    if l4:
+        return f"{code}-{l4}"
+    words = label.split() or ["Account"]
+    tail = words[0][:6] if len(words) == 1 else "".join(w[:3] for w in words[:3])
+    return f"{code}-{tail.upper()}"
+
+
+def mask_all(text: str) -> str:
+    """mask(), plus any other run of 6+ digits that is not a date (for --show output)."""
+    def repl(m):
+        digits = re.sub(r"\D", "", m.group(0))
+        return m.group(0) if looks_like_date(digits) else "xx" + digits[-4:]
+    return _ANY_DIGITS.sub(repl, mask(text))
+
+
+def pdf_lines(path: Path) -> tuple[list[str], str]:
+    """Page 1's text lines, and a note if there is no usable text."""
+    try:
+        import pdfplumber
+        with pdfplumber.open(path) as pdf:
+            txt = (pdf.pages[0].extract_text() or "") if pdf.pages else ""
+    except Exception as e:
+        return [], f"could not open PDF ({type(e).__name__})"
+    return txt.splitlines(), "" if txt.strip() else "no text layer (scan?)"
+
+
+def header_end(lines: list[str]) -> int:
+    """Index of the first transaction line in the first 40 lines (the header is everything before)."""
+    for i, line in enumerate(lines[:40]):
+        if _TXN_LINE.match(line):
+            return i
+    return min(len(lines), 40)
+
+
 def top_text(path: Path) -> tuple[str, str]:
     """The statement's header text (never its transactions), and a note if it could not be read.
 
@@ -124,18 +201,8 @@ def top_text(path: Path) -> tuple[str, str]:
     transaction descriptions are never read, because transfer lines name your other
     accounts ("TRANSFER FROM xx4321") and would send the file to the wrong folder."""
     if path.suffix.lower() == ".pdf":
-        try:
-            import pdfplumber
-            with pdfplumber.open(path) as pdf:
-                txt = (pdf.pages[0].extract_text() or "") if pdf.pages else ""
-        except Exception as e:
-            return "", f"could not open PDF ({type(e).__name__})"
-        head = []
-        for line in txt.splitlines()[:40]:
-            if _TXN_LINE.match(line):
-                break
-            head.append(line)
-        return "\n".join(head), "" if txt.strip() else "no text layer (scan?)"
+        lines, note = pdf_lines(path)
+        return "\n".join(lines[:header_end(lines)]), note
     try:
         with open(path, newline="", encoding="utf-8-sig", errors="replace") as f:
             rows = [r for _, r in zip(range(26), csv.reader(f))]
@@ -178,60 +245,120 @@ def gather(src: Path):
 
 
 def survey(src: Path, files: list[Path]) -> None:
-    groups = defaultdict(lambda: {"files": 0, "banks": Counter(), "folders": Counter(), "types": Counter()})
-    unknown = []
+    info = []
     for f in files:
         text, note = top_text(f)
         rel = f.relative_to(src)
         found = header_endings(text) or name_endings(f.stem)
-        bank_hits = banks_in(text) or banks_in(str(rel))
-        if not found:
-            unknown.append((mask(rel.as_posix()), bank_hits[0] if bank_hits else "?", note))
-            continue
-        g = groups[found[0]]
-        g["files"] += 1
-        g["types"][f.suffix.lower().lstrip(".")] += 1
-        for b in bank_hits[:1]:
-            g["banks"][b] += 1
-        if len(rel.parts) > 1:
-            g["folders"][mask(rel.parent.as_posix())] += 1
+        hits = banks_in(text) or banks_in(path_words(rel))
+        info.append({"rel": rel, "l4": found[0] if found else "", "bank": hits[0] if hits else "?",
+                     "label": account_label(rel), "type": f.suffix.lower().lstrip("."), "note": note})
+
+    # 1. accounts with a number; 2. files without one join an account with the same bank and
+    #    name; 3. the rest are grouped by bank + name; 4. no name either: listed for the owner.
+    groups = []
+    for l4 in dict.fromkeys(i["l4"] for i in info if i["l4"]):
+        items = [i for i in info if i["l4"] == l4]
+        banks = Counter(i["bank"] for i in items if i["bank"] != "?")
+        labels = Counter(i["label"] for i in items if i["label"])
+        groups.append({"l4": l4, "bank": banks.most_common(1)[0][0] if banks else "?",
+                       "label": labels.most_common(1)[0][0] if labels else "", "items": items, "by_name": 0})
+    unknown = []
+    for i in (i for i in info if not i["l4"]):
+        same = [g for g in groups if i["label"] and g["label"] == i["label"] and g["bank"] == i["bank"]]
+        if len(same) == 1:
+            same[0]["items"].append(i)
+            same[0]["by_name"] += 1
+        elif i["label"]:
+            g = next((g for g in groups if not g["l4"] and g["label"] == i["label"] and g["bank"] == i["bank"]), None)
+            if g is None:
+                g = {"l4": "", "bank": i["bank"], "label": i["label"], "items": [], "by_name": 0}
+                groups.append(g)
+            g["items"].append(i)
+            g["by_name"] += 1
+        else:
+            unknown.append(i)
+
     print(f"Survey of {len(files)} PDF/CSV files")
-    print(f"{'ending':8} {'files':>5}  {'types':12} {'bank (guess)':18} folder")
-    rows = []
-    for l4, g in sorted(groups.items(), key=lambda kv: -kv[1]["files"]):
-        bank = g["banks"].most_common(1)[0][0] if g["banks"] else "?"
-        folder = g["folders"].most_common(1)[0][0] if g["folders"] else "-"
-        types = " ".join(f"{k}:{v}" for k, v in g["types"].items())
-        print(f"xx{l4:6} {g['files']:>5}  {types:12} {bank:18} {folder}")
-        rows.append((l4, bank, folder))
+    print(f"{'ending':8} {'files':>5}  {'types':12} {'bank (guess)':14} account name (from file/folder names)")
+    for g in sorted(groups, key=lambda g: (g["bank"], g["label"], g["l4"])):
+        types = " ".join(f"{k}:{v}" for k, v in Counter(i["type"] for i in g["items"]).items())
+        extra = f"   ({g['by_name']} placed by name only)" if g["l4"] and g["by_name"] else ""
+        print(f"{'xx' + g['l4'] if g['l4'] else '????':8} {len(g['items']):>5}  {types:12} {g['bank']:14} "
+              f"{g['label'] or '-'}{extra}")
+    if any(not g["l4"] for g in groups):
+        print("???? = no account number found in these files, so they are grouped by bank and name.\n"
+              "       Add each one's last 4 digits to config/accounts.csv yourself (from a statement).")
     if unknown:
-        print(f"No account number found in {len(unknown)} files (placed later by folder names, if possible):")
+        print(f"\nNo account number or account name found in {len(unknown)} files (you'll place these by hand):")
         for u in unknown[:15]:
-            print(f"  {u[0]}  bank: {u[1]}  {u[2]}")
+            print(f"  {mask(u['rel'].as_posix())}  bank: {u['bank']}  {u['note']}")
         if len(unknown) > 15:
             print(f"  ... {len(unknown) - 15} more")
+    notes = Counter(i["note"] for i in info if i["note"])
+    for note, n in notes.items():
+        print(f"{n} files: {note}")
+    if any(not g["l4"] for g in groups):
+        example = next(g for g in groups if not g["l4"])["items"][0]["rel"].as_posix()
+        print(f'\nTo see why a file shows no number:  --show "{mask(example)}"')
 
     acc_path = p("config", "accounts.csv")
     existing = [r for r in read_csv(acc_path) if r.get("account_id")]
-    if existing:
-        print(f"config/accounts.csv already has {len(existing)} accounts - not overwritten.")
+    if existing and any(r.get("default_use", "").strip().upper() != "CHOOSE" for r in existing):
+        print(f"\nconfig/accounts.csv already has {len(existing)} accounts you've edited - not overwritten.")
         return
-    draft = []
-    for l4, bank, folder in rows:
-        last_dir = folder.split("/")[-1] if folder != "-" else ""
-        name = re.sub(r"[^A-Za-z0-9 ]", "", last_dir).strip() or "Account"
-        if bank != "?" and norm(bank) in norm(name):
-            name = "Account"
-        bank_label = bank if bank != "?" else "UnknownBank"
-        draft.append({"account_id": f"{norm(bank_label)[:6].upper()}-{l4}", "bank": bank_label,
-                      "account_name": name, "last4": l4, "default_use": "CHOOSE", "opened": "", "closed": "",
-                      "raw_folder": f"{re.sub(r'[^A-Za-z0-9]', '', bank_label)}/{re.sub(r'[^A-Za-z0-9]', '', name)}_{l4}",
-                      "parser_prefix": ""})
+    draft, ids = [], set()
+    for g in sorted(groups, key=lambda g: (g["bank"], g["label"], g["l4"])):
+        bank = g["bank"] if g["bank"] != "?" else "UnknownBank"
+        name = g["label"] or "Account"
+        acc_id = short_id(bank, name, g["l4"])
+        n = 2
+        while acc_id in ids:
+            acc_id = f"{short_id(bank, name, g['l4'])}-{n}"
+            n += 1
+        ids.add(acc_id)
+        folder = re.sub(r"[^A-Za-z0-9]", "", name) + (f"_{g['l4']}" if g["l4"] else "")
+        draft.append({"account_id": acc_id, "bank": bank, "account_name": name, "last4": g["l4"],
+                      "default_use": "CHOOSE", "opened": "", "closed": "",
+                      "raw_folder": f"{re.sub(r'[^A-Za-z0-9]', '', bank)}/{folder}", "parser_prefix": ""})
     write_csv(acc_path, draft, ["account_id", "bank", "account_name", "last4", "default_use", "opened",
                                 "closed", "raw_folder", "parser_prefix"])
-    print(f"\nWrote a draft config/accounts.csv with {len(draft)} accounts.")
-    print("Before the next step: open it, replace every CHOOSE with business or personal, fix any bank")
-    print("shown as UnknownBank, and delete rows that are not your accounts (e.g. a card number).")
+    print(f"\n{'Replaced the untouched draft' if existing else 'Wrote a draft'} config/accounts.csv "
+          f"with {len(draft)} accounts.")
+    print("Before the next step: open it, replace every CHOOSE with business or personal, fill in any empty\n"
+          "last4, fix any bank shown as UnknownBank, and delete rows that are not your accounts.")
+
+
+def show(src: Path, target: str) -> None:
+    f = Path(target).expanduser()
+    if not f.is_absolute():
+        f = src / target
+    if not f.is_file():
+        die(f"file not found: {target} (give the path as the survey prints it, relative to the source folder)")
+    rel = f.relative_to(src) if src in f.parents else Path(f.name)
+    print(f"File: {mask(rel.as_posix())}   (page 1 only, account numbers masked)")
+    if f.suffix.lower() == ".pdf":
+        lines, note = pdf_lines(f)
+        cut = header_end(lines)
+        for i, line in enumerate(lines[:45]):
+            if i == cut:
+                print("----- header ends here: the next line looks like the first transaction -----")
+            print(f"  {mask_all(line)}")
+        if cut >= len(lines[:45]):
+            print("----- no transaction line found; all lines above count as header -----")
+        if note:
+            print(f"Note: {note}")
+    else:
+        with open(f, newline="", encoding="utf-8-sig", errors="replace") as fh:
+            for _, line in zip(range(6), fh):
+                print(f"  {mask_all(line.rstrip())}")
+    text, _ = top_text(f)
+    ends = header_endings(text)
+    print(f"Account endings found in the header: {', '.join('xx' + e for e in ends) or 'none'}")
+    print(f"Bank: {', '.join(banks_in(text)) or 'none'} (text), "
+          f"{', '.join(banks_in(path_words(rel))) or 'none'} (file/folder names)")
+    print(f"Account name from file/folder names: {account_label(rel) or 'none'}")
+    print("Before pasting this anywhere, delete your name and address lines if you prefer.")
 
 
 def main():
@@ -239,6 +366,7 @@ def main():
     ap.add_argument("source")
     ap.add_argument("--survey", action="store_true")
     ap.add_argument("--apply", action="store_true")
+    ap.add_argument("--show", metavar="FILE", help="print page 1 of one file (masked) to see why no number was found")
     a = ap.parse_args()
     src = Path(a.source).expanduser().resolve()
     if not src.is_dir():
@@ -246,6 +374,9 @@ def main():
     raw = p("00_raw")
     if raw in src.parents or src == raw:
         die("the source must be outside this project's 00_raw folder")
+    if a.show:
+        show(src, a.show)
+        return
     files, ignored = gather(src)
     if not files:
         die("no PDF or CSV files found in the source folder")
@@ -257,6 +388,7 @@ def main():
     bad = [r["account_id"] for r in accounts if r.get("default_use", "").lower() not in {"business", "personal"}]
     if bad:
         die(f"config/accounts.csv: set default_use to business or personal for {', '.join(bad)}")
+    no_l4 = [r["account_id"] for r in accounts if not re.fullmatch(r"\d{4}", r.get("last4", "").strip())]
 
     existing_hashes = {sha(f) for f in raw.rglob("*") if f.is_file()} if raw.exists() else set()
     report, seen = [], {}
@@ -268,20 +400,22 @@ def main():
         name_end = name_endings(f.stem)
         path_n = norm(rel.as_posix())
         body_n = norm(text)
-        found_banks = set(banks_in(text) + banks_in(rel.as_posix()))
+        found_banks = set(banks_in(text) + banks_in(path_words(rel)))
+        label_n = norm(account_label(rel))
         cands = []
         for acc in accounts:
-            l4 = acc["last4"]
+            l4 = acc.get("last4", "").strip()
             ev = []
-            pos = head.index(l4) if l4 in head else None
+            pos = head.index(l4) if l4 and l4 in head else None
             if pos is not None:
                 ev.append("statement header")
             yearish = re.fullmatch(r"(19|20)\d\d", l4) is not None
-            if l4 in name_end or (not yearish and re.search(rf"(?<!\d){l4}(?!\d)", f.stem)):
+            if l4 and (l4 in name_end or (not yearish and re.search(rf"(?<!\d){l4}(?!\d)", f.stem))):
                 ev.append("file name")
             bank_hit = (norm(acc["bank"]) in path_n or norm(acc["bank"]) in body_n
                         or bool(set(banks_in(acc["bank"])) & found_banks))
-            name_hit = norm(acc["account_name"]) and norm(acc["account_name"]) in path_n
+            acc_n = norm(acc["account_name"])
+            name_hit = bool(acc_n) and (acc_n in path_n or acc_n == label_n)
             cands.append({"acc": acc, "ev": ev, "pos": pos if pos is not None else 99, "bank": bank_hit, "name": name_hit})
         strong = [c for c in cands if c["ev"]]
         choice, conf, why = None, "", ""
@@ -343,6 +477,9 @@ def main():
         kinds = Counter(f.suffix.lower() or "(none)" for f in ignored)
         print("Not PDF/CSV, ignored: " + ", ".join(f"{k} {v}" for k, v in kinds.items())
               + "  (xlsx/ofx/qif exports: download CSV instead)")
+    if no_l4:
+        print(f"last4 is empty for {', '.join(no_l4)}: fill it in from a statement before inventory.py "
+              "(transfer matching needs it).")
     if not a.apply:
         print('Looks right? Run again with --apply. UNSORTED files: drag them into the right 00_raw folder.')
     else:

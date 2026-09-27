@@ -79,6 +79,54 @@ def unit_tests(root):
           c.fy_of(dt.date(2023, 6, 30)) == "FY2023" and c.fy_of(dt.date(2023, 7, 1)) == "FY2024")
 
 
+def make_pdf(path, lines):
+    from reportlab.pdfgen import canvas
+    path.parent.mkdir(parents=True, exist_ok=True)
+    c = canvas.Canvas(str(path))
+    for i, line in enumerate(lines):
+        c.drawString(40, 800 - 16 * i, line)
+    c.save()
+
+
+def import_by_name_test(tmp):
+    """A real-world layout: FY folders, names like CBA_Business-Saving_2023-02_to_2023-05.pdf, statements
+    whose header shows no account number, and an address line next to the closing balance."""
+    src = tmp / "Bank_Statements_Organized"
+    body = ["Date Transaction Debit Credit Balance", "01 Feb 2023 OPENING BALANCE $1,000.00 CR",
+            "03 Feb 2023 TRANSFER TO XX5555 NETBANK 50.00 $950.00 CR"]
+    no_number = ["Your Statement", "J CITIZEN", "Statement 3 (Page 1 of 1)"] + body
+    nab_header = ["National Australia Bank", "J CITIZEN", "5 The Crescent Closing balance $950.00 CR",
+                  "Account number 083-123 12344937"]
+    files = {"FY2023/CBA_Business-Saving_2023-02_to_2023-05.pdf": ("CommBank/BusinessSaving", no_number),
+             "FY2024/CBA_Business-Saving_2023-09_to_2023-10.pdf": ("CommBank/BusinessSaving", no_number + ["x"]),
+             "FY2023/CBA_Personal-Transaction_2022-11_to_2023-05.pdf": ("CommBank/PersonalTransaction", no_number + ["y"]),
+             "FY2026/NAB_Everyday_2025-07.pdf": ("NAB/Everyday_4937", nab_header + body),
+             "FY2025/NAB_Everyday_2024-07.pdf": ("NAB/Everyday_4937", no_number + ["z"])}
+    for rel, (_, lines) in files.items():
+        make_pdf(src / rel, lines)
+    root = tmp / "fresh project"
+    subprocess.run([sys.executable, str(TOOLS / "init_project.py"), str(root)], capture_output=True, check=True)
+    code, out = run(root, "import_statements.py", str(src), "--survey")
+    acc = {r["account_id"]: r for r in rows(root / "config" / "accounts.csv")}
+    want = {"CBA-BUSSAV": ("CommBank", "Business Saving", ""), "CBA-PERTRA": ("CommBank", "Personal Transaction", ""),
+            "NAB-4937": ("NAB", "Everyday", "4937")}
+    got = {k: (v["bank"], v["account_name"], v["last4"]) for k, v in acc.items()}
+    check("survey groups files without an account number by bank + name, and finds the number past an address",
+          code == 0 and got == want and "5555" not in str(got), f"{got}\n{out[-600:]}")
+    for r in acc.values():
+        r["default_use"] = "business" if "Business" in r["account_name"] else "personal"
+    write_rows(root / "config" / "accounts.csv", list(acc.values()))
+    code, out = run(root, "import_statements.py", str(src), "--apply")
+    placed = {rel: (root / "00_raw" / d / Path(rel).name).exists() for rel, (d, _) in files.items()}
+    check("import places those files by bank + account name and says which last4 are missing",
+          code == 0 and all(placed.values()) and "last4 is empty for CBA-BUSSAV, CBA-PERTRA" in out,
+          f"{placed}\n{out[-600:]}")
+    code, out = run(root, "import_statements.py", str(src), "--show", "FY2026/NAB_Everyday_2025-07.pdf")
+    check("--show prints the header masked and finds the account ending",
+          code == 0 and "xx4937" in out and "12344937" not in out and "header ends here" in out
+          and "Account endings found in the header: xx4937" in out, out[-600:])
+
+
 def main():
     from make_demo import build_events
 
@@ -107,6 +155,7 @@ def main():
     code, out = run(root, "import_statements.py", str(src), "--apply")
     check("import_statements is safe to re-run (nothing copied twice)",
           sum(1 for _ in (root / "00_raw").rglob("*.*")) == len(original))
+    import_by_name_test(tmp)
     run(root, "inventory.py")
 
     code, out = run(root, "parse_all.py")
