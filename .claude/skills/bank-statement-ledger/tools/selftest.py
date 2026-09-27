@@ -78,7 +78,7 @@ def unit_tests(root):
     import import_statements as imp
     not_accounts = ["Accounts or 13 10 12 for Business Accounts.", "Enquiries 13 1998", "Phone 1300 123 456",
                     "ABN 11 222 333 444 AFSL", "Customer number 98-765-2468", "Mobile 0412 345 678"]
-    accounts = {"Account number 40-924-1357": ["1357"], "Account Number 06 1234 00005678": ["5678"],
+    accounts = {"Account number 77-888-1357": ["1357"], "Account Number 06 1234 00005678": ["5678"],
                 "Account number 123 456 789": ["6789"]}
     bad = [t for t in not_accounts if imp.endings(t)] + [t for t, v in accounts.items() if imp.endings(t) != v]
     check("phone numbers, ABNs and customer numbers are never taken for account numbers", not bad, str(bad))
