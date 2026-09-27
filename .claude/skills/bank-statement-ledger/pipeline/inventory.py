@@ -31,6 +31,9 @@ INV_FIELDS = ["statement_id", "account_id", "bank", "file_type", "statement_file
 
 _DATE_TOKEN = r"(\d{1,2}[/.\-]\d{1,2}[/.\-]\d{2,4}|\d{1,2}\s+[A-Za-z]{3,9}\.?,?\s+\d{2,4})"
 _PERIOD = re.compile(_DATE_TOKEN + r"\s*(?:to|-|–|—|until|through)\s*" + _DATE_TOKEN, re.I)
+# Start and end on separate lines, e.g. NAB: "Statement starts 18 January 2025" / "Statement ends 10 March 2025"
+_STARTS = re.compile(r"(?:statement|period)\s+(?:starts?|begins?|start date|from)\s*:?\s*" + _DATE_TOKEN, re.I)
+_ENDS = re.compile(r"(?:statement|period)\s+(?:ends?|end date|to)\s*:?\s*" + _DATE_TOKEN, re.I)
 
 
 def detect_period(text: str):
@@ -39,6 +42,14 @@ def detect_period(text: str):
             a, b = parse_date(m[1]), parse_date(m[2])
         except ValueError:
             continue
+        if a <= b and (b - a).days <= 400:
+            return a, b
+    m1, m2 = _STARTS.search(text or ""), _ENDS.search(text or "")
+    if m1 and m2:
+        try:
+            a, b = parse_date(m1[1]), parse_date(m2[1])
+        except ValueError:
+            return None, None
         if a <= b and (b - a).days <= 400:
             return a, b
     return None, None
