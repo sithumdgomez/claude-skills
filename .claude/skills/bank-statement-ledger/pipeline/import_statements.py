@@ -296,11 +296,22 @@ def survey(src: Path, files: list[Path]) -> None:
         rel = f.relative_to(src)
         found = header_endings(text) or name_endings(f.stem)
         hits = banks_in(text) or banks_in(path_words(rel))
-        info.append({"rel": rel, "l4": found[0] if found else "", "bank": hits[0] if hits else "?",
+        info.append({"rel": rel, "ends": list(dict.fromkeys(found)), "bank": hits[0] if hits else "?",
                      "label": account_label(rel), "type": f.suffix.lower().lstrip("."), "note": note})
 
     # 1. accounts with a number; 2. files without one join an account with the same bank and
     #    name; 3. the rest are grouped by bank + name; 4. no name either: listed for the owner.
+    # A file whose header shows several numbers (e.g. a linked savings account above its own) takes
+    # the first number that isn't already the only number on another account's statements.
+    sole = defaultdict(set)
+    for i in info:
+        if len(i["ends"]) == 1 and i["label"]:
+            sole[i["ends"][0]].add(i["label"])
+    for i in info:
+        ends = i["ends"]
+        free = [e for e in ends if not (i["label"] and sole.get(e) and i["label"] not in sole[e])]
+        i["l4"] = (free or ends or [""])[0]
+
     groups = []
     for l4 in dict.fromkeys(i["l4"] for i in info if i["l4"]):
         items = [i for i in info if i["l4"] == l4]
@@ -468,8 +479,11 @@ def main():
             choice, conf = strong[0], "high"
         elif len(strong) > 1:
             narrowed = [c for c in strong if c["bank"]] or strong
+            named = [c for c in narrowed if c["name"]]
             narrowed.sort(key=lambda c: c["pos"])
-            if len(narrowed) == 1 or narrowed[0]["pos"] < narrowed[1]["pos"]:
+            if len(named) == 1:
+                choice, conf, why = named[0], "medium", "several account numbers found; took the one named in the file name"
+            elif len(narrowed) == 1 or narrowed[0]["pos"] < narrowed[1]["pos"]:
                 choice, conf, why = narrowed[0], "medium", "several account numbers found; took the first in the header"
         else:
             weak = [c for c in cands if c["bank"] and c["name"]]

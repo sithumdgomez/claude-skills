@@ -211,6 +211,11 @@ Full strategy: `reference/model-and-tokens.md`. The short version:
   repeat a small header (statement number, account number) above the table.
   `import_statements.py` ends the header at the "Date ... Balance" table heading, so a
   debit-card number on a transaction line ("Card xx9999") is never taken for the account.
+- **A header can show more than one of the owner's account numbers** (NAB everyday statements
+  show the linked savings account above their own). The survey never gives a number to a second
+  account when it is already the only number on another account's statements, and the import
+  picks the account whose name is in the file name. Check the medium-confidence rows in
+  `review/import_report.csv` before `--apply`.
 - **Some statements show no account number in their header** (seen with CommBank
   downloads). `import_statements.py --survey` then groups them by bank and account name from
   the file and folder names ("CBA_Business-Saving_2023-02_to_2023-05.pdf" → CommBank,

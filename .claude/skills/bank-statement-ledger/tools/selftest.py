@@ -141,12 +141,12 @@ def import_by_name_test(tmp):
             "03 Feb 2023 TRANSFER TO XX5555 NETBANK 50.00 $950.00 CR"]
     no_number = ["Your Statement", "J CITIZEN", "Statement 3 (Page 1 of 1)"] + body
     nab_header = ["National Australia Bank", "J CITIZEN", "5 The Crescent Closing balance $950.00 CR",
-                  "Account number 083-123 12344937"]
+                  "Account number 083-123 12342580"]
     files = {"FY2023/CBA_Business-Saving_2023-02_to_2023-05.pdf": ("CommBank/BusinessSaving", no_number),
              "FY2024/CBA_Business-Saving_2023-09_to_2023-10.pdf": ("CommBank/BusinessSaving", no_number + ["x"]),
              "FY2023/CBA_Personal-Transaction_2022-11_to_2023-05.pdf": ("CommBank/PersonalTransaction", no_number + ["y"]),
-             "FY2026/NAB_Everyday_2025-07.pdf": ("NAB/Everyday_4937", nab_header + body),
-             "FY2025/NAB_Everyday_2024-07.pdf": ("NAB/Everyday_4937", no_number + ["z"])}
+             "FY2026/NAB_Everyday_2025-07.pdf": ("NAB/Everyday_2580", nab_header + body),
+             "FY2025/NAB_Everyday_2024-07.pdf": ("NAB/Everyday_2580", no_number + ["z"])}
     for rel, (_, lines) in files.items():
         make_pdf(src / rel, lines)
     root = tmp / "fresh project"
@@ -154,7 +154,7 @@ def import_by_name_test(tmp):
     code, out = run(root, "import_statements.py", str(src), "--survey")
     acc = {r["account_id"]: r for r in rows(root / "config" / "accounts.csv")}
     want = {"CBA-BUSSAV": ("CommBank", "Business Saving", ""), "CBA-PERTRA": ("CommBank", "Personal Transaction", ""),
-            "NAB-4937": ("NAB", "Everyday", "4937")}
+            "NAB-2580": ("NAB", "Everyday", "2580")}
     got = {k: (v["bank"], v["account_name"], v["last4"]) for k, v in acc.items()}
     check("survey groups files without an account number by bank + name, and finds the number past an address",
           code == 0 and got == want and "5555" not in str(got), f"{got}\n{out[-600:]}")
@@ -168,8 +168,8 @@ def import_by_name_test(tmp):
           f"{placed}\n{out[-600:]}")
     code, out = run(root, "import_statements.py", str(src), "--show", "FY2026/NAB_Everyday_2025-07.pdf")
     check("--show prints the header masked and finds the account ending",
-          code == 0 and "xx4937" in out and "12344937" not in out and "header ends here" in out
-          and "Account endings found in the header: xx4937" in out, out[-600:])
+          code == 0 and "xx2580" in out and "12342580" not in out and "header ends here" in out
+          and "Account endings found in the header: xx2580" in out, out[-600:])
     outs = []
     for name, kw in [("fake bold", {"fake_bold": True}), ("number below its label", {"number_drop": 4.5}),
                      ("no table heading", {"bare": True}), ("margin codes", {"margin_codes": True, "bare": True})]:
@@ -179,6 +179,44 @@ def import_by_name_test(tmp):
     check("CommBank-style header (fake bold, number below label, 3-line transactions): account found, card ignored",
           all("Account endings found in the header: xx5678\n" in o and "00005678" not in o for o in outs),
           "\n".join(o[-500:] for o in outs))
+
+
+def import_two_accounts_test(tmp):
+    """One bank, two accounts (Savings and Everyday): the Everyday statements show the linked savings
+    account's number above their own, and outnumber the Savings statements. File names say which
+    account each one is."""
+    src = tmp / "two accounts"
+    top = ["National Australia Bank", "J CITIZEN"]
+    table = ["Date Particulars Debits Credits Balance", "01 Jul 2024 Brought forward 100.00 Cr",
+             "02 Jul 2024 V2580 WOOLWORTHS Card number 4564 1234 5678 2580 10.00 90.00 Cr"]
+    files = {"FY2025/NAB_Savings_2024-07_to_2025-01.pdf": ("NAB/Savings_2468", top + ["Account number 12-345-2468"] + table),
+             "FY2026/NAB_Savings_2025-01_to_2025-07.pdf": ("NAB/Savings_2468", top + ["Account number 12-345-2468"] + table[:2]),
+             "FY2025/NAB_Transaction_2024-07_to_2025-01.pdf": ("NAB/Transaction_1357", top + [
+                 "Linked savings account 12-345-2468", "Account number 55-666-1357"] + table),
+             "FY2025/NAB_Transaction_2025-01_to_2025-03.pdf": ("NAB/Transaction_1357", top + [
+                 "Linked savings account 12-345-2468", "Account number 55-666-1357"] + table[:2]),
+             "FY2026/NAB_Transaction_2025-07.pdf": ("NAB/Transaction_1357", top + [
+                 "Linked savings account 12-345-2468", "Account number 55-666-1357"] + table[:1])}
+    for rel, (_, lines) in files.items():
+        make_pdf(src / rel, lines)
+    csv_rel = "FY2026/NAB_Transaction_2026-01_to_2026-06.csv"
+    (src / csv_rel).write_text("Date,Amount,Account Number,Transaction Details,Balance\n"
+                               "01 Jan 26,-10.00,55-666-1357,WOOLWORTHS,40.00\n")
+    files[csv_rel] = ("NAB/Transaction_1357", None)
+    root = tmp / "two accounts project"
+    subprocess.run([sys.executable, str(TOOLS / "init_project.py"), str(root)], capture_output=True, check=True)
+    code, out = run(root, "import_statements.py", str(src), "--survey")
+    acc = {r["account_id"]: r for r in rows(root / "config" / "accounts.csv")}
+    got = {k: (v["account_name"], v["last4"]) for k, v in acc.items()}
+    check("survey splits two accounts at one bank even when one statement shows both numbers",
+          got == {"NAB-2468": ("Savings", "2468"), "NAB-1357": ("Transaction", "1357")}, f"{got}\n{out[-500:]}")
+    for r in acc.values():
+        r["default_use"] = "personal"
+    write_rows(root / "config" / "accounts.csv", list(acc.values()))
+    code, out = run(root, "import_statements.py", str(src), "--apply")
+    placed = {rel: (root / "00_raw" / d / Path(rel).name).exists() for rel, (d, _) in files.items()}
+    check("import files each statement under the account its file name names, not the first number",
+          code == 0 and all(placed.values()), f"{placed}\n{out[-500:]}")
 
 
 def main():
@@ -210,6 +248,7 @@ def main():
     check("import_statements is safe to re-run (nothing copied twice)",
           sum(1 for _ in (root / "00_raw").rglob("*.*")) == len(original))
     import_by_name_test(tmp)
+    import_two_accounts_test(tmp)
     run(root, "inventory.py")
 
     code, out = run(root, "parse_all.py")
