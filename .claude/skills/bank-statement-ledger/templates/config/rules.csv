@@ -1,0 +1,6 @@
+rule_id,match_type,pattern,direction,account_scope,type,category,business_personal,business_pct,confidence,reason
+R0001,regex,\b(CREDIT )?INTEREST( PAID| CREDIT)?\b,in,any,Other income,Interest earned,account,,high,Bank interest earned is taxable income
+R0002,regex,\b(ACCOUNT|MONTHLY|SERVICE|ACCT) (KEEPING )?FEE\b,out,business,Expense,Bank and merchant fees,Business,,high,Fee charged on a business account
+R0003,regex,\b(ACCOUNT|MONTHLY|SERVICE|ACCT) (KEEPING )?FEE\b,out,personal,Expense,Other personal expense,Personal,,high,Fee charged on a personal account
+R0004,regex,\bATO\b|TAX OFFICE PAYMENTS|AUSTRALIAN TAXATION,out,any,Tax,Tax payment,Personal,,medium,Payment to the ATO - check it is income tax / PAYG (not a BAS)
+R0005,regex,\bATO\b|TAX OFFICE|AUSTRALIAN TAXATION,in,any,Tax,Tax refund,Personal,,medium,Refund from the ATO - not income

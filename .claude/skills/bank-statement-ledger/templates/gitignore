@@ -1,0 +1,7 @@
+# Statement data never goes into git history, even a local one.
+00_raw/
+01_statements/
+02_extracted/
+03_data/
+review/
+output/

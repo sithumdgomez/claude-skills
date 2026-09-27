@@ -1,0 +1,55 @@
+category,applies_to,types,ato_label,possibly_deductible,description
+Sales and fees,Business,Business income,Other business income,,Payments from customers for your work or goods
+Government industry payments,Business,Business income,Assessable government industry payments,,Grants or subsidies paid to the business (not Centrelink)
+Other business income,Business,Business income,Other business income,,Business income that is not sales - e.g. commission received
+Stock and materials,Business,Expense|Refund,Purchases and other costs,,Goods bought to resell or to make what you sell
+Contractors and commissions,Business,Expense|Refund,"Contractor, sub-contractor and commission expenses",,Payments to self-employed people who do work for the business
+Employee super,Business,Expense,Superannuation expenses,,Super for employees only - your own super goes to Personal super contributions
+Business premises rent,Business,Expense|Refund,Rent expenses,,Rent for a shop/office/workshop (not your home)
+Equipment and vehicle leases,Business,Expense|Refund,Lease expenses,,Lease payments for business equipment or vehicles
+Business loan interest,Business,Expense,Interest expenses within Australia,,Interest on money borrowed for the business
+Motor vehicle,Business,Expense|Refund,Motor vehicle expenses,,"Fuel, rego, insurance, servicing - usually Mixed with a business %"
+Repairs and maintenance,Business,Expense|Refund,Repairs and maintenance,,Repairs to business equipment or premises
+Equipment purchases,Business,Expense|Refund,Depreciation expenses,,"Tools, computers, machinery - the accountant decides depreciation or immediate write-off"
+Software and subscriptions,Business,Expense|Refund,All other expenses,,Software and online services used for the business
+Phone and internet,Business,Expense|Refund,All other expenses,,Usually Mixed - set a business %
+Advertising and marketing,Business,Expense|Refund,All other expenses,,
+Bank and merchant fees,Business,Expense|Refund,All other expenses,,Account fees and card/merchant fees on business accounts
+Office supplies and postage,Business,Expense|Refund,All other expenses,,
+Business travel,Business,Expense|Refund,All other expenses,,Travel for work away from your usual workplace
+Business meals and entertainment,Business,Expense|Refund,All other expenses,,Entertainment is often not deductible - the accountant decides
+Business insurance,Business,Expense|Refund,All other expenses,,"Public liability, professional indemnity, business contents"
+Accounting and legal,Business,Expense|Refund,All other expenses,,Accountant and legal fees for the business
+Training and education,Business,Expense|Refund,All other expenses,,Courses that maintain or improve skills for the current business
+Licences and memberships,Business,Expense|Refund,All other expenses,,"Licences, registrations, professional memberships"
+Home office and utilities,Business,Expense|Refund,All other expenses,,Business share of home running costs - usually Mixed
+Other business expense,Business,Expense|Refund,All other expenses,,Say what it is in notes
+Interest earned,Both,Other income,Gross interest (individual return),,Bank interest is taxable - listed per account
+Salary and wages,Personal,Other income,Salary or wages (individual return),,Pay from an employer
+Government payments,Personal,Other income,Government payments (individual return - accountant to place),,Centrelink and similar payments
+Other personal income,Personal,Other income,,,Say what it is in notes
+Groceries,Personal,Expense|Refund,,,
+Dining and takeaway,Personal,Expense|Refund,,,
+Fuel and transport,Personal,Expense|Refund,,,Personal car costs and public transport
+Housing,Personal,Expense|Refund,,,Rent or mortgage for your home
+Home utilities,Personal,Expense|Refund,,,"Power, gas, water, home internet (personal share)"
+Health and medical,Personal,Expense|Refund,,,
+Personal insurance,Personal,Expense|Refund,,,"Health, car, home and contents insurance (personal)"
+Shopping and household,Personal,Expense|Refund,,,
+Subscriptions and entertainment,Personal,Expense|Refund,,,"Streaming, games, events"
+Holidays and personal travel,Personal,Expense|Refund,,,
+Personal care,Personal,Expense|Refund,,,
+Education (personal),Personal,Expense|Refund,,,
+Cash withdrawals,Personal,Expense,,,What the cash was spent on is unknown
+Other personal expense,Personal,Expense|Refund,,,
+Donations (DGR),Personal,Expense,Gifts or donations (D9),Y,Only donations to registered deductible gift recipients
+Tax agent fees,Personal,Expense,Cost of managing tax affairs (D10),Y,Fees for preparing and lodging your tax return
+Income protection insurance,Personal,Expense,,Y,Accountant to confirm
+Personal super contributions,Personal,Expense,,Y,Contributions you may be able to claim - accountant to confirm
+Work-related expenses (as an employee),Personal,Expense,,Y,Only if you also have a job as an employee
+Tax payment,Both,Tax,,,"Income tax, PAYG instalments and other payments to the ATO"
+Tax refund,Both,Tax,,,Refunds from the ATO - not income
+Transfer,Both,Internal transfer|Owner drawing|Owner contribution,,,Between your own accounts
+Loan,Personal,Loan out|Loan in,,,Informal loans with friends and family
+Gift or shared bill,Personal,Gift or shared bill,,,
+Outside account,Both,Outside account,,,To/from an account whose statements are not in this set

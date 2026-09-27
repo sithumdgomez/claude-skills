@@ -1,0 +1,16 @@
+{
+  "country": "AU",
+  "currency": "AUD",
+  "fy_start_month": 7,
+  "first_fy": "FY2023",
+  "last_fy": "FY2026",
+  "gst_registered": false,
+  "own_names": [],
+  "transfer_max_days": 4,
+  "loan_flag_threshold": "500",
+  "large_business_item_threshold": "1000",
+  "date_tolerance_days": 7,
+  "cash_deposit_keywords": ["CASH DEP", "CASH DEPOSIT", "ATM DEPOSIT", "BRANCH DEPOSIT"],
+  "transfer_keywords": ["TRANSFER", "TFR", "XFER", "OSKO", "PAYID", "PAY ID", "NPP", "PAY ANYONE",
+                        "FAST TRANSFER", "INTERNET TRANSFER", "ONLINE TRANSFER", "BEEM"]
+}
