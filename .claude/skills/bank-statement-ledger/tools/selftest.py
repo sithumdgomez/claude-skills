@@ -76,6 +76,12 @@ def unit_tests(root):
     bad = {k: c.mask(k) for k, v in m.items() if c.mask(k) != v}
     check("mask keeps last 4 of account/card numbers and leaves dates and amounts alone", not bad, str(bad))
     import import_statements as imp
+    not_accounts = ["Accounts or 13 10 12 for Business Accounts.", "Enquiries 13 1998", "Phone 1300 123 456",
+                    "ABN 11 222 333 444 AFSL", "Customer number 98-765-2468", "Mobile 0412 345 678"]
+    accounts = {"Account number 40-924-1357": ["1357"], "Account Number 06 1234 00005678": ["5678"],
+                "Account number 123 456 789": ["6789"]}
+    bad = [t for t in not_accounts if imp.endings(t)] + [t for t, v in accounts.items() if imp.endings(t) != v]
+    check("phone numbers, ABNs and customer numbers are never taken for account numbers", not bad, str(bad))
     real_order = ["MR J CITIZEN", "13 SAMPLE BEND", "SUBURB VIC 3000", "12.00.34V", "O.123D.456S.7R.LS", "1234",
                   "7R123ZZ", "2.1.12345.67890", "*#*", "Your Statement", "Statement 1 (Page 1 of 2)",
                   "Account Number 06 1234 00005678", "032", "Statement", "Period 1 Feb 2023 - 31 May 2023",
@@ -182,11 +188,12 @@ def import_by_name_test(tmp):
 
 
 def import_two_accounts_test(tmp):
-    """One bank, two accounts (Savings and Everyday): the Everyday statements show the linked savings
-    account's number above their own, and outnumber the Savings statements. File names say which
-    account each one is."""
+    """One bank, two accounts (Savings and Everyday) laid out like NAB: every statement starts with the
+    bank's phone number on a line that says "Accounts", one Everyday statement also shows the linked
+    savings account above its own number, and Everyday statements outnumber Savings ones."""
     src = tmp / "two accounts"
-    top = ["National Australia Bank", "J CITIZEN"]
+    top = ["NAB Classic Banking", "For further information call 13 12 34 for Personal",
+           "Accounts or 13 56 78 for Business Accounts.", "J CITIZEN", "BSB number 083-999"]
     table = ["Date Particulars Debits Credits Balance", "01 Jul 2024 Brought forward 100.00 Cr",
              "02 Jul 2024 V2580 WOOLWORTHS Card number 4564 1234 5678 2580 10.00 90.00 Cr"]
     files = {"FY2025/NAB_Savings_2024-07_to_2025-01.pdf": ("NAB/Savings_2468", top + ["Account number 12-345-2468"] + table),
@@ -194,9 +201,10 @@ def import_two_accounts_test(tmp):
              "FY2025/NAB_Transaction_2024-07_to_2025-01.pdf": ("NAB/Transaction_1357", top + [
                  "Linked savings account 12-345-2468", "Account number 55-666-1357"] + table),
              "FY2025/NAB_Transaction_2025-01_to_2025-03.pdf": ("NAB/Transaction_1357", top + [
-                 "Linked savings account 12-345-2468", "Account number 55-666-1357"] + table[:2]),
+                 "Account number 55-666-1357"] + table[:2]),
              "FY2026/NAB_Transaction_2025-07.pdf": ("NAB/Transaction_1357", top + [
-                 "Linked savings account 12-345-2468", "Account number 55-666-1357"] + table[:1])}
+                 "Account number 55-666-1357"] + table[:1] + [
+                 "Statement number 2 National Australia Bank Limited ABN 11 222 333 444 AFSL"])}
     for rel, (_, lines) in files.items():
         make_pdf(src / rel, lines)
     csv_rel = "FY2026/NAB_Transaction_2026-01_to_2026-06.csv"

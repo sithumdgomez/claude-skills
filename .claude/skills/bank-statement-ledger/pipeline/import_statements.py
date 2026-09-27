@@ -84,6 +84,13 @@ _TABLE_HEAD = re.compile(r"^\s*(?:date|posted|value date|transaction date)\b.*"
                          r"\b(?:balance|debit|credit|amount|withdrawals?|deposits?)\b", re.I)
 _OPENING = re.compile(r"opening balance|brought forward", re.I)
 _AMOUNT = re.compile(r"\d\.\d{2}\b")
+# Numbers in a header that are never account numbers: phone numbers ("13 10 12 for Business
+# Accounts" on every NAB statement), ABNs, and numbers labelled customer/reference/licence etc.
+_PHONE = re.compile(r"^(?:13 ?\d{2} ?\d{2}|1[38]00 ?\d{3} ?\d{3}|0[2-478] ?\d{4} ?\d{4}|04\d{2} ?\d{3} ?\d{3})$")
+_ABN = re.compile(r"^\d{2} \d{3} \d{3} \d{3}$")
+_NOT_ACCOUNT_LABEL = re.compile(r"(?:\babn|\bacn|\bafsl|licen[cs]e|\bcall|phone|\btel|\bfax|\bph|enquir\w*|\bbpay"
+                                r"|biller(?: code)?|\bref(?:erence)?|customer(?: number| no)?|member(?: number| no)?"
+                                r"|client(?: number| no)?|\bcrn)\W*$", re.I)
 # A full BSB + account number anywhere in the header ("06 1234 00005678", "083-123 12345678").
 _ACCT_SHAPE = re.compile(r"(?<![\d.,/])\d{2,3}[- ]?\d{3,4}[ ]{1,3}\d{4,10}(?![\d.,/])")
 _DIGIT_SEQ = re.compile(r"(?<![\d.,/])\d[\d \-]{3,}\d(?![\d.,/])")
@@ -116,6 +123,11 @@ def looks_like_date(digits: str) -> bool:
     return False
 
 
+def not_an_account(seq: str, before: str) -> bool:
+    """A phone number, ABN, or a number whose label says it is something else."""
+    return bool(_PHONE.match(seq) or _ABN.match(seq) or _NOT_ACCOUNT_LABEL.search(before[-30:]))
+
+
 def endings(text: str) -> list[str]:
     """Candidate account endings (last 4 digits) in reading order."""
     out = []
@@ -124,7 +136,8 @@ def endings(text: str) -> list[str]:
     for m in _DIGIT_SEQ.finditer(text):
         seq = m.group(0).strip()
         digits = re.sub(r"\D", "", seq)
-        if len(digits) < 6 or _BSB.match(seq) or looks_like_date(digits) or re.fullmatch(r"\d{4}-\d{2}-\d{2}", seq):
+        if (len(digits) < 6 or _BSB.match(seq) or looks_like_date(digits) or re.fullmatch(r"\d{4}-\d{2}-\d{2}", seq)
+                or not_an_account(seq, text[:m.start()])):
             continue
         out.append((m.start(), digits[-4:]))
     return [d for _, d in sorted(out)]
@@ -265,7 +278,8 @@ def header_endings(text: str) -> list[str]:
             found += got
     if not found:
         for line in lines:
-            found += [re.sub(r"\D", "", m.group(0))[-4:] for m in _ACCT_SHAPE.finditer(line)]
+            found += [re.sub(r"\D", "", m.group(0))[-4:] for m in _ACCT_SHAPE.finditer(line)
+                      if not not_an_account(m.group(0), line[:m.start()])]
     return found
 
 
