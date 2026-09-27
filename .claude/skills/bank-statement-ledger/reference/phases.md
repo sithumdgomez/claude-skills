@@ -140,6 +140,9 @@ in this job.
   - **Loan:** money out is Loan out and money in is Loan in. The running net shows who owes
     whom, so nobody has to decide on every $20 whether it was a new loan or a repayment.
   - **Gift or shared bill**
+  - **Personal spending:** paying someone for personal things (a Marketplace seller, tickets,
+    anything private). Money out is a personal expense. Nobody needs to say what it was for,
+    and it is never counted as a loan.
   - **Business customer**
   - **Business supplier**
   - **Ask me**

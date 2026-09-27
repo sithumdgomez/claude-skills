@@ -18,7 +18,8 @@ Order: exact rules win; then the others in file order, first match wins.
 
 people.csv columns
   person, match_type, pattern, relationship (friend|family|customer|supplier|other),
-  treatment (Loan | Gift or shared bill | Business customer | Business supplier | Ask me), note
+  treatment (Loan | Gift or shared bill | Personal spending | Business customer | Business supplier |
+  Ask me), note
 """
 from __future__ import annotations
 
@@ -30,7 +31,7 @@ from common import BP_VALUES, TYPES, load_accounts, p, read_csv
 RULE_FIELDS = ["rule_id", "match_type", "pattern", "direction", "account_scope", "type", "category",
                "business_personal", "business_pct", "confidence", "reason"]
 PEOPLE_FIELDS = ["person", "match_type", "pattern", "relationship", "treatment", "note"]
-TREATMENTS = {"Loan", "Gift or shared bill", "Business customer", "Business supplier", "Ask me"}
+TREATMENTS = {"Loan", "Gift or shared bill", "Personal spending", "Business customer", "Business supplier", "Ask me"}
 
 
 def _tester(match_type: str, pattern: str):

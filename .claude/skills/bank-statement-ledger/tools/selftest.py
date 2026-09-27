@@ -75,6 +75,11 @@ def unit_tests(root):
          "01/07/2022 1,234.56 123456.78": "01/07/2022 1,234.56 123456.78", "2022-07-01": "2022-07-01"}
     bad = {k: c.mask(k) for k, v in m.items() if c.mask(k) != v}
     check("mask keeps last 4 of account/card numbers and leaves dates and amounts alone", not bad, str(bad))
+    import classify
+    ps_out, ps_in = classify.treatment_result("Personal spending", D("-50.00")), classify.treatment_result("Personal spending", D("50.00"))
+    check("people marked Personal spending: money out is a personal expense, never a loan",
+          (ps_out["type"], ps_out["bp"], ps_out.get("category")) == ("Expense", "Personal", "Other personal expense")
+          and ps_in["type"] == "Unknown", f"{ps_out} {ps_in}")
     import import_statements as imp
     not_accounts = ["Accounts or 13 10 12 for Business Accounts.", "Enquiries 13 1998", "Phone 1300 123 456",
                     "ABN 11 222 333 444 AFSL", "Customer number 98-765-2468", "Mobile 0412 345 678"]

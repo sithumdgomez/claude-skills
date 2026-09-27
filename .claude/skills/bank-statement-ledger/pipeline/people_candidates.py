@@ -8,6 +8,8 @@ Claude (Haiku is enough) proposes which keys are the same person; you confirm
 config/people.csv and give each person a treatment:
   Loan                 money out = Loan out, money in = Loan in (net = who owes whom)
   Gift or shared bill  personal, not income or spending for tax
+  Personal spending    money out is a personal expense (paying someone for personal things);
+                       no description needed, and it is never counted as a loan
   Business customer    money in is business income
   Business supplier    money out is a business expense (category still needed)
   Ask me               stays on your review list

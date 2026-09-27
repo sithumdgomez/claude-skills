@@ -70,6 +70,10 @@ def treatment_result(treatment: str, amount: Decimal) -> dict:
         return {"type": resolve_type("Loan", amount), "bp": "Personal", "conf": "high"}
     if treatment == "Gift or shared bill":
         return {"type": "Gift or shared bill", "bp": "Personal", "conf": "high"}
+    if treatment == "Personal spending":
+        if amount < 0:
+            return {"type": "Expense", "bp": "Personal", "conf": "high", "category": "Other personal expense"}
+        return {"type": "Unknown", "bp": "", "conf": "low", "why": "money IN from someone you only pay for personal things"}
     if treatment == "Business customer":
         if amount > 0:
             return {"type": "Business income", "bp": "Business", "conf": "high", "category": "Sales and fees"}
