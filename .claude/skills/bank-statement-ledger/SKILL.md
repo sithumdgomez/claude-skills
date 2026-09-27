@@ -188,9 +188,15 @@ Full strategy: `reference/model-and-tokens.md`. The short version:
 - **Bank interest earned is taxable income.** It's listed per account on the Personal tab.
 - **ATO refunds are not income; ATO payments are not expenses** (type Tax). If the owner is
   GST-registered, BAS payments need their own treatment: ask the accountant.
-- **Payments to a credit card, PayPal or Afterpay** are transfers to an account missing
-  from the set. The real spending is on that account's statements. Add them, or use type
-  Outside account.
+- **Payments to a credit card, PayPal or Wise** are transfers to an account missing
+  from the set. The real spending is on that account's statements (Wise and PayPal let you
+  download them). Add them, or use type Outside account.
+- **Afterpay and other buy-now-pay-later services** give no statements, only an order history
+  (often just screenshots). The instalments on the bank statement are the amounts; never
+  take amounts from the order history. It only matters for business purchases: the owner keeps
+  a screenshot per business order in `evidence/afterpay/` as the receipt, and marks the
+  matching instalments as business in the review list, naming the order in the note.
+  Everything else paid through Afterpay is personal.
 - **Payment processors** (Stripe, Square, PayPal) pay out net of fees. The accountant needs
   gross income, so flag it and get the processor reports.
 - **Transaction lines name the owner's other accounts** ("TRANSFER FROM xx4321"). Never work
