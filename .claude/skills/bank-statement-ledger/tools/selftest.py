@@ -190,7 +190,8 @@ def import_by_name_test(tmp):
 def import_two_accounts_test(tmp):
     """One bank, two accounts (Savings and Everyday) laid out like NAB: every statement starts with the
     bank's phone number on a line that says "Accounts", one Everyday statement also shows the linked
-    savings account above its own number, and Everyday statements outnumber Savings ones."""
+    savings account above its own number, one has the mail barcode (read as digits) on the line after
+    "Account Balance Summary", and Everyday statements outnumber Savings ones."""
     src = tmp / "two accounts"
     top = ["NAB Classic Banking", "For further information call 13 12 34 for Personal",
            "Accounts or 13 56 78 for Business Accounts.", "J CITIZEN", "BSB number 083-999"]
@@ -201,7 +202,7 @@ def import_two_accounts_test(tmp):
              "FY2025/NAB_Transaction_2024-07_to_2025-01.pdf": ("NAB/Transaction_1357", top + [
                  "Linked savings account 12-345-2468", "Account number 55-666-1357"] + table),
              "FY2025/NAB_Transaction_2025-01_to_2025-03.pdf": ("NAB/Transaction_1357", top + [
-                 "Account number 55-666-1357"] + table[:2]),
+                 "Account Balance Summary", "0987654321", "Account number 55-666-1357"] + table[:2]),
              "FY2026/NAB_Transaction_2025-07.pdf": ("NAB/Transaction_1357", top + [
                  "Account number 55-666-1357"] + table[:1] + [
                  "Statement number 2 National Australia Bank Limited ABN 11 222 333 444 AFSL"])}

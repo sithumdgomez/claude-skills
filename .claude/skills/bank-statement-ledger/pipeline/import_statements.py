@@ -91,6 +91,9 @@ _ABN = re.compile(r"^\d{2} \d{3} \d{3} \d{3}$")
 _NOT_ACCOUNT_LABEL = re.compile(r"(?:\babn|\bacn|\bafsl|licen[cs]e|\bcall|phone|\btel|\bfax|\bph|enquir\w*|\bbpay"
                                 r"|biller(?: code)?|\bref(?:erence)?|customer(?: number| no)?|member(?: number| no)?"
                                 r"|client(?: number| no)?|\bcrn)\W*$", re.I)
+# A label whose number is printed on the next line ends with it: "Account Number" yes, "Account
+# Balance Summary" no (on NAB statements the line below that is the mail barcode, read as digits).
+_LABEL_AT_END = re.compile(r"(?:account|acct|a/c|card)(?:\s*(?:number|no\.?|#))?\s*:?\s*$|\bnumber\s*:?\s*$", re.I)
 # A full BSB + account number anywhere in the header ("06 1234 00005678", "083-123 12345678").
 _ACCT_SHAPE = re.compile(r"(?<![\d.,/])\d{2,3}[- ]?\d{3,4}[ ]{1,3}\d{4,10}(?![\d.,/])")
 _DIGIT_SEQ = re.compile(r"(?<![\d.,/])\d[\d \-]{3,}\d(?![\d.,/])")
@@ -273,7 +276,8 @@ def header_endings(text: str) -> list[str]:
     for i, line in enumerate(lines):
         if _ACCT_LINE.search(line):
             got = endings(line)
-            if not got and i + 1 < len(lines) and re.fullmatch(r"[\d \-]{6,}", lines[i + 1].strip()):
+            if (not got and _LABEL_AT_END.search(line) and i + 1 < len(lines)
+                    and re.fullmatch(r"[\d \-]{6,}", lines[i + 1].strip())):
                 got = endings(lines[i + 1])
             found += got
     if not found:
