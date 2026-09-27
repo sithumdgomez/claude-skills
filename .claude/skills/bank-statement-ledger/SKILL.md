@@ -200,7 +200,7 @@ Full strategy: `reference/model-and-tokens.md`. The short version:
 - **CommBank PDFs:** bold labels can be "fake bold" (each letter printed twice, read as
   `AAccccoouunntt`), and a transaction runs over 2–3 lines with the amount on the last
   ("16 Dec MCDONALDS ..." / "Card xx1234" / "Value Date: 13/12/2022  13.10  $104.14 CR").
-  Sideways mail-sorting codes up the left margin ("2.1.87683.53121") look like a date and an amount. `parsers/_pdf_helpers.clean_page()` removes both the doubled letters and sideways text (`page_lines` uses it); a CBA parser must join
+  Sideways mail-sorting codes up the left margin ("2.1.12345.67890") look like a date and an amount. `parsers/_pdf_helpers.clean_page()` removes both the doubled letters and sideways text (`page_lines` uses it); a CBA parser must join
   each date line with the lines below it up to the one with the amount. Pages after the first
   repeat a small header (statement number, account number) above the table.
   `import_statements.py` ends the header at the "Date ... Balance" table heading, so a

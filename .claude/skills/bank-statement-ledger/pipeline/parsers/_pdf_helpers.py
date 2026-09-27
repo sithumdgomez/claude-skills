@@ -18,7 +18,7 @@ def clean_page(page):
     - letters printed twice on top of each other: some banks fake bold that way (CommBank
       headings), which pdfplumber otherwise reads as "AAccccoouunntt"
     - sideways text, such as the mail-sorting codes CommBank prints up the left margin
-      ("2.1.87683.53121"), which otherwise look like a date and an amount"""
+      ("2.1.12345.67890"), which otherwise look like a date and an amount"""
     try:
         page = page.dedupe_chars()
     except AttributeError:  # pdfplumber older than 0.10
