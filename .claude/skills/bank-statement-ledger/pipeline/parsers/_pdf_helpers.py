@@ -13,9 +13,18 @@ import re
 MONEY_WORD = re.compile(r"^\(?-?\$?\d{1,3}(?:,\d{3})*(?:\.\d{2})\)?-?$|^\(?-?\$?\d+\.\d{2}\)?-?$")
 
 
+def dedupe(page):
+    """Drop letters printed twice on top of each other. Some banks fake bold text that way
+    (CommBank headings), which pdfplumber otherwise reads as "AAccccoouunntt"."""
+    try:
+        return page.dedupe_chars()
+    except AttributeError:  # pdfplumber older than 0.10
+        return page
+
+
 def page_lines(page, y_tolerance: float = 3.0) -> list[dict]:
     """Group the words on a page into lines: [{"top", "words": [{text,x0,x1,top}], "text"}]."""
-    words = page.extract_words(x_tolerance=1.5, y_tolerance=2, keep_blank_chars=False,
+    words = dedupe(page).extract_words(x_tolerance=1.5, y_tolerance=2, keep_blank_chars=False,
                                use_text_flow=False)
     words.sort(key=lambda w: (round(w["top"]), w["x0"]))
     lines: list[dict] = []

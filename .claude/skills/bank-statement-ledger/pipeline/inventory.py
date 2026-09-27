@@ -55,6 +55,7 @@ def sha256(path) -> str:
 def pdf_info(path):
     try:
         import pdfplumber
+        from parsers._pdf_helpers import dedupe
     except ImportError:
         die("pdfplumber is not installed: pip install pdfplumber")
     try:
@@ -62,7 +63,7 @@ def pdf_info(path):
             pages = len(pdf.pages)
             text = ""
             for pg in pdf.pages[:2]:
-                text += (pg.extract_text() or "") + "\n"
+                text += (dedupe(pg).extract_text() or "") + "\n"
     except Exception as e:  # encrypted or damaged PDFs
         return 0, "?", None, None, f"cannot open ({type(e).__name__}) - password-protected or damaged?"
     has_text = "Y" if len(text.strip()) > 50 else "N"

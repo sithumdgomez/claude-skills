@@ -197,6 +197,12 @@ Full strategy: `reference/model-and-tokens.md`. The short version:
   out which account a statement belongs to from its transactions; only from its header, file
   name or folder. `import_statements.py` reads PDF headers up to the first transaction and
   only the "account" column of CSVs, for this reason.
+- **CommBank PDFs:** bold labels can be "fake bold" (each letter printed twice, read as
+  `AAccccoouunntt`), and a transaction's amount sits on its second line ("22 May Transfer to
+  ..." / "Bill 10.00 $20.00 CR"). `parsers/_pdf_helpers.dedupe()` fixes the first (`page_lines`
+  uses it); a CBA parser must join each date line with the lines below it until the amount.
+  `import_statements.py` ends the header at the "Date ... Balance" table heading, so a
+  debit-card number on a transaction line ("Card xx9999") is never taken for the account.
 - **Some statements show no account number in their header** (seen with CommBank
   downloads). `import_statements.py --survey` then groups them by bank and account name from
   the file and folder names ("CBA_Business-Saving_2023-02_to_2023-05.pdf" → CommBank,

@@ -73,11 +73,18 @@ KNOWN_BANKS = [
 _BANK_RX = [(name, re.compile(rx, re.I)) for name, rx in KNOWN_BANKS]
 _ACCT_LINE = re.compile(r"account|acct|a/c|\bacc\b|card|number|\bbsb\b", re.I)
 # A transaction line: starts with a date and carries an amount. The header ends there.
-# The month must be a real month, so an address like "5 The Crescent" next to "Closing balance
-# $1,234.56" does not end the header before the account number.
+# Where the header ends (see header_end). The month must be a real month, so an address like
+# "5 The Crescent" next to "Closing balance $1,234.56" does not end the header early.
 _MONTH = (r"(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?"
           r"|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)")
-_TXN_LINE = re.compile(rf"^\s*(\d{{1,2}}[/.\-]\d{{1,2}}|\d{{1,2}}\s+{_MONTH})\b.*\d\.\d{{2}}", re.I)
+_DATE_START = re.compile(rf"^\s*(?:\d{{1,2}}[/.\-]\d{{1,2}}(?:[/.\-]\d{{2,4}})?|\d{{1,2}}\s+{_MONTH}(?:\s+\d{{4}})?)\b", re.I)
+_RANGE_REST = re.compile(r"^\s*(?:-|–|to)\s*\d", re.I)       # "1 Feb 2023 - 31 May 2023" is a period
+_TABLE_HEAD = re.compile(r"^\s*(?:date|posted|value date|transaction date)\b.*"
+                         r"\b(?:balance|debit|credit|amount|withdrawals?|deposits?)\b", re.I)
+_OPENING = re.compile(r"opening balance|brought forward", re.I)
+_AMOUNT = re.compile(r"\d\.\d{2}\b")
+# A full BSB + account number anywhere in the header ("06 1234 00005678", "083-123 12345678").
+_ACCT_SHAPE = re.compile(r"(?<![\d.,/])\d{2,3}[- ]?\d{3,4}[ ]{1,3}\d{4,10}(?![\d.,/])")
 _DIGIT_SEQ = re.compile(r"(?<![\d.,/])\d[\d \-]{3,}\d(?![\d.,/])")
 _MASKED = re.compile(r"(?:[xX*•]{2,}|ending(?: in)?)\s?(\d{4})(?!\d)", re.I)
 _BSB = re.compile(r"^\d{3}-?\d{3}$")
@@ -178,17 +185,31 @@ def pdf_lines(path: Path) -> tuple[list[str], str]:
     """Page 1's text lines, and a note if there is no usable text."""
     try:
         import pdfplumber
+        from parsers._pdf_helpers import dedupe
         with pdfplumber.open(path) as pdf:
-            txt = (pdf.pages[0].extract_text() or "") if pdf.pages else ""
+            txt = ""
+            if pdf.pages:
+                txt = dedupe(pdf.pages[0]).extract_text() or ""
     except Exception as e:
         return [], f"could not open PDF ({type(e).__name__})"
     return txt.splitlines(), "" if txt.strip() else "no text layer (scan?)"
 
 
 def header_end(lines: list[str]) -> int:
-    """Index of the first transaction line in the first 40 lines (the header is everything before)."""
+    """Index of the line where the transactions start (the header is everything before), within
+    the first 40 lines: the table heading ("Date ... Balance"), or a line that starts with a date
+    and carries an amount, an opening balance, or a description whose amount is on the next line
+    (CommBank prints "22 May Transfer to ..." then "Bill 10.00 $20.00 CR")."""
     for i, line in enumerate(lines[:40]):
-        if _TXN_LINE.match(line):
+        if _TABLE_HEAD.search(line):
+            return i
+        m = _DATE_START.match(line)
+        if not m or _RANGE_REST.match(line[m.end():]):
+            continue
+        rest = line[m.end():]
+        nxt = lines[i + 1] if i + 1 < len(lines) else ""
+        if (_AMOUNT.search(line) or _OPENING.search(line)
+                or (len(re.findall(r"[A-Za-z]{2,}", rest)) >= 2 and _AMOUNT.search(nxt) and not _DATE_START.match(nxt))):
             return i
     return min(len(lines), 40)
 
@@ -216,11 +237,20 @@ def top_text(path: Path) -> tuple[str, str]:
 
 
 def header_endings(text: str) -> list[str]:
-    """Account endings on header lines that mention an account/card/number/BSB."""
+    """Account endings on header lines that mention an account/card/number/BSB (or on the line
+    just below such a label, when the number is printed a little lower). If none, a full
+    BSB + account number anywhere in the header."""
+    lines = text.splitlines()
     found = []
-    for line in text.splitlines():
+    for i, line in enumerate(lines):
         if _ACCT_LINE.search(line):
-            found += endings(line)
+            got = endings(line)
+            if not got and i + 1 < len(lines) and re.fullmatch(r"[\d \-]{6,}", lines[i + 1].strip()):
+                got = endings(lines[i + 1])
+            found += got
+    if not found:
+        for line in lines:
+            found += [re.sub(r"\D", "", m.group(0))[-4:] for m in _ACCT_SHAPE.finditer(line)]
     return found
 
 

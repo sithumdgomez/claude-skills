@@ -88,6 +88,34 @@ def make_pdf(path, lines):
     c.save()
 
 
+def make_cba_like_pdf(path, fake_bold=False, number_drop=0.0):
+    """Page 1 laid out like a CommBank statement (made-up numbers): two header columns, bold labels
+    (optionally "fake bold": printed twice), amounts on the second line of each transaction, and a
+    debit card number in a transaction that must never be taken for the account."""
+    from reportlab.pdfgen import canvas
+    path.parent.mkdir(parents=True, exist_ok=True)
+    c = canvas.Canvas(str(path), pagesize=(595, 842))
+
+    def txt(x, y, s, bold=False, size=9, right=False):
+        c.setFont("Helvetica-Bold" if bold else "Helvetica", size)
+        draw = c.drawRightString if right else c.drawString
+        draw(x, 842 - y, s)
+        if bold and fake_bold:
+            draw(x + 0.3, 842 - y, s)
+    txt(345, 60, "Your Statement", bold=True, size=20)
+    txt(345, 88, "Statement 1", bold=True), txt(535, 88, "(Page 1 of 2)", right=True)
+    txt(345, 115, "Account Number", bold=True), txt(535, 115 + number_drop, "06 1234 00005678", right=True)
+    txt(345, 140, "Statement", bold=True), txt(40, 150, "MR J CITIZEN")
+    txt(345, 152, "Period", bold=True), txt(535, 152, "1 Feb 2023 - 31 May 2023", right=True)
+    txt(40, 162, "13 SAMPLE BEND"), txt(345, 170, "Closing Balance", bold=True), txt(535, 170, "$250.00 CR", right=True)
+    txt(40, 174, "SUBURB VIC 3000"), txt(345, 192, "Enquiries", bold=True), txt(535, 192, "13 1998", right=True)
+    txt(40, 400, "Date", bold=True), txt(75, 400, "Transaction", bold=True), txt(535, 400, "Balance", bold=True, right=True)
+    txt(40, 420, "01 Feb 2023 OPENING BALANCE"), txt(535, 420, "Nil", right=True)
+    txt(40, 438, "22 May Visa Debit Purchase Card xx9999"), txt(75, 449, "WOOLWORTHS")
+    txt(385, 449, "10.00", right=True), txt(535, 449, "$10.00 CR", right=True)
+    c.save()
+
+
 def import_by_name_test(tmp):
     """A real-world layout: FY folders, names like CBA_Business-Saving_2023-02_to_2023-05.pdf, statements
     whose header shows no account number, and an address line next to the closing balance."""
@@ -125,6 +153,14 @@ def import_by_name_test(tmp):
     check("--show prints the header masked and finds the account ending",
           code == 0 and "xx4937" in out and "12344937" not in out and "header ends here" in out
           and "Account endings found in the header: xx4937" in out, out[-600:])
+    outs = []
+    for name, kw in [("fake bold", {"fake_bold": True}), ("number below its label", {"number_drop": 4.5})]:
+        pdf = tmp / "cba samples" / f"{name}.pdf"
+        make_cba_like_pdf(pdf, **kw)
+        outs.append(run(root, "import_statements.py", str(src), "--show", str(pdf))[1])
+    check("CommBank-style header (fake bold, number below label, 2-line transactions): account found, card ignored",
+          all("Account endings found in the header: xx5678\n" in o and "00005678" not in o for o in outs),
+          "\n".join(o[-500:] for o in outs))
 
 
 def main():
