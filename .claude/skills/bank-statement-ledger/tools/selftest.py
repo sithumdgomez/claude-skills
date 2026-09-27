@@ -75,6 +75,15 @@ def unit_tests(root):
          "01/07/2022 1,234.56 123456.78": "01/07/2022 1,234.56 123456.78", "2022-07-01": "2022-07-01"}
     bad = {k: c.mask(k) for k, v in m.items() if c.mask(k) != v}
     check("mask keeps last 4 of account/card numbers and leaves dates and amounts alone", not bad, str(bad))
+    import import_statements as imp
+    real_order = ["MR J CITIZEN", "13 SAMPLE BEND", "SUBURB VIC 3000", "12.00.34V", "O.123D.456S.7R.LS", "1234",
+                  "7R123ZZ", "2.1.12345.67890", "*#*", "Your Statement", "Statement 1 (Page 1 of 2)",
+                  "Account Number 06 1234 00005678", "032", "Statement", "Period 1 Feb 2023 - 31 May 2023",
+                  "Closing Balance $250.00CR", "Enquiries 13 1998", "Date Transaction Debit Credit Balance",
+                  "01 Feb 2023 OPENING BALANCE Nil", "22 MayTransfer from xx5555 CommBank app", "Bill $20.00 $20.00CR"]
+    cut = imp.header_end(real_order)
+    check("header reading skips margin codes that look like a date + amount (CommBank line order)",
+          cut == 17 and imp.header_endings("\n".join(real_order[:cut])) == ["5678"], f"cut at {real_order[cut]!r}")
     check("fy_of: 30 Jun 2023 = FY2023, 1 Jul 2023 = FY2024",
           c.fy_of(dt.date(2023, 6, 30)) == "FY2023" and c.fy_of(dt.date(2023, 7, 1)) == "FY2024")
 
@@ -88,11 +97,12 @@ def make_pdf(path, lines):
     c.save()
 
 
-def make_cba_like_pdf(path, fake_bold=False, number_drop=0.0, bare=False):
+def make_cba_like_pdf(path, fake_bold=False, number_drop=0.0, bare=False, margin_codes=False):
     """Page 1 laid out like a CommBank statement (made-up numbers): two header columns, bold labels
     (optionally "fake bold": printed twice), transactions over 3 lines with the amount on the last,
     and a debit card number in a transaction that must never be taken for the account.
-    bare=True leaves out the table heading and the opening balance line."""
+    bare=True leaves out the table heading and the opening balance line; margin_codes=True adds
+    sideways mail-sorting codes up the left margin that look like a date and an amount."""
     from reportlab.pdfgen import canvas
     path.parent.mkdir(parents=True, exist_ok=True)
     c = canvas.Canvas(str(path), pagesize=(595, 842))
@@ -103,6 +113,10 @@ def make_cba_like_pdf(path, fake_bold=False, number_drop=0.0, bare=False):
         draw(x, 842 - y, s)
         if bold and fake_bold:
             draw(x + 0.3, 842 - y, s)
+    if margin_codes:
+        for y, code in [(300, "12.00.34V"), (380, "2.1.12345.67890"), (460, "7R123ZZ")]:
+            c.saveState(), c.translate(15, 842 - y), c.rotate(-90)
+            c.setFont("Helvetica", 6), c.drawString(0, 0, code), c.restoreState()
     txt(345, 60, "Your Statement", bold=True, size=20)
     txt(345, 88, "Statement 1", bold=True), txt(535, 88, "(Page 1 of 2)", right=True)
     txt(345, 115, "Account Number", bold=True), txt(535, 115 + number_drop, "06 1234 00005678", right=True)
@@ -158,7 +172,7 @@ def import_by_name_test(tmp):
           and "Account endings found in the header: xx4937" in out, out[-600:])
     outs = []
     for name, kw in [("fake bold", {"fake_bold": True}), ("number below its label", {"number_drop": 4.5}),
-                     ("no table heading", {"bare": True})]:
+                     ("no table heading", {"bare": True}), ("margin codes", {"margin_codes": True, "bare": True})]:
         pdf = tmp / "cba samples" / f"{name}.pdf"
         make_cba_like_pdf(pdf, **kw)
         outs.append(run(root, "import_statements.py", str(src), "--show", str(pdf))[1])

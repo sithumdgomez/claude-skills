@@ -13,18 +13,22 @@ import re
 MONEY_WORD = re.compile(r"^\(?-?\$?\d{1,3}(?:,\d{3})*(?:\.\d{2})\)?-?$|^\(?-?\$?\d+\.\d{2}\)?-?$")
 
 
-def dedupe(page):
-    """Drop letters printed twice on top of each other. Some banks fake bold text that way
-    (CommBank headings), which pdfplumber otherwise reads as "AAccccoouunntt"."""
+def clean_page(page):
+    """Drop what isn't statement text before reading a page:
+    - letters printed twice on top of each other: some banks fake bold that way (CommBank
+      headings), which pdfplumber otherwise reads as "AAccccoouunntt"
+    - sideways text, such as the mail-sorting codes CommBank prints up the left margin
+      ("2.1.87683.53121"), which otherwise look like a date and an amount"""
     try:
-        return page.dedupe_chars()
+        page = page.dedupe_chars()
     except AttributeError:  # pdfplumber older than 0.10
-        return page
+        pass
+    return page.filter(lambda obj: obj.get("object_type") != "char" or obj.get("upright", True))
 
 
 def page_lines(page, y_tolerance: float = 3.0) -> list[dict]:
     """Group the words on a page into lines: [{"top", "words": [{text,x0,x1,top}], "text"}]."""
-    words = dedupe(page).extract_words(x_tolerance=1.5, y_tolerance=2, keep_blank_chars=False,
+    words = clean_page(page).extract_words(x_tolerance=1.5, y_tolerance=2, keep_blank_chars=False,
                                use_text_flow=False)
     words.sort(key=lambda w: (round(w["top"]), w["x0"]))
     lines: list[dict] = []

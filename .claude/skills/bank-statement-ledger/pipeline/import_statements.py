@@ -77,7 +77,8 @@ _ACCT_LINE = re.compile(r"account|acct|a/c|\bacc\b|card|number|\bbsb\b", re.I)
 # "5 The Crescent" next to "Closing balance $1,234.56" does not end the header early.
 _MONTH = (r"(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?"
           r"|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)")
-_DATE_START = re.compile(rf"^\s*(?:\d{{1,2}}[/.\-]\d{{1,2}}(?:[/.\-]\d{{2,4}})?|\d{{1,2}}\s+{_MONTH}(?:\s+\d{{4}})?)\b", re.I)
+_DATE_START = re.compile(rf"^\s*(?:(\d{{1,2}})[/\-](\d{{1,2}})(?:[/\-]\d{{2,4}})?|(\d{{1,2}})\s+{_MONTH}(?:\s+\d{{4}})?)(?=\s|$)",
+                         re.I)
 _RANGE_REST = re.compile(r"^\s*(?:-|–|to)\s*\d", re.I)       # "1 Feb 2023 - 31 May 2023" is a period
 _TABLE_HEAD = re.compile(r"^\s*(?:date|posted|value date|transaction date)\b.*"
                          r"\b(?:balance|debit|credit|amount|withdrawals?|deposits?)\b", re.I)
@@ -93,7 +94,8 @@ _ANY_DIGITS = re.compile(r"(?<![\d.,])\d(?:[ \-]?\d){5,}(?![\d.,])")
 # Words in file/folder names that say nothing about which account it is.
 _NOISE = {"statement", "statements", "estatement", "estatements", "stmt", "export", "exports", "download",
           "downloads", "transactions", "history", "copy", "final", "new", "to", "from", "and", "of", "the",
-          "for", "period", "page", "pdf", "csv", "bank", "banking", "account", "accounts", "acc", "acct"}
+          "for", "period", "page", "pdf", "csv", "bank", "banking", "account", "accounts", "acc", "acct",
+          "unverified", "pending"}
 _SHORT = {"CommBank": "CBA", "St.George": "STG", "Bank of Melbourne": "BOM", "Great Southern Bank": "GSB",
           "UnknownBank": "BANK"}
 
@@ -185,14 +187,23 @@ def pdf_lines(path: Path) -> tuple[list[str], str]:
     """Page 1's text lines, and a note if there is no usable text."""
     try:
         import pdfplumber
-        from parsers._pdf_helpers import dedupe
+        from parsers._pdf_helpers import clean_page
         with pdfplumber.open(path) as pdf:
             txt = ""
             if pdf.pages:
-                txt = dedupe(pdf.pages[0]).extract_text() or ""
+                txt = clean_page(pdf.pages[0]).extract_text() or ""
     except Exception as e:
         return [], f"could not open PDF ({type(e).__name__})"
     return txt.splitlines(), "" if txt.strip() else "no text layer (scan?)"
+
+
+def date_start(line: str):
+    """The date a line starts with (a real day and month, then a space), or None."""
+    m = _DATE_START.match(line)
+    if not m:
+        return None
+    day, month = int(m.group(1) or m.group(3)), int(m.group(2) or 1)
+    return m if 1 <= day <= 31 and 1 <= month <= 12 else None
 
 
 def header_end(lines: list[str]) -> int:
@@ -203,14 +214,15 @@ def header_end(lines: list[str]) -> int:
     for i, line in enumerate(lines[:40]):
         if _TABLE_HEAD.search(line):
             return i
-        m = _DATE_START.match(line)
-        if not m or _RANGE_REST.match(line[m.end():]):
+        m = date_start(line)
+        rest = line[m.end():] if m else ""
+        if not m or _RANGE_REST.match(rest):
             continue
-        if _AMOUNT.search(line) or _OPENING.search(line):
+        if _AMOUNT.search(rest) or _OPENING.search(rest):
             return i
-        if len(re.findall(r"[A-Za-z]{2,}", line[m.end():])) >= 2:
+        if len(re.findall(r"[A-Za-z]{2,}", rest)) >= 2:
             for nxt in lines[i + 1:i + 4]:
-                if _DATE_START.match(nxt):
+                if date_start(nxt):
                     break
                 if _AMOUNT.search(nxt):
                     return i
