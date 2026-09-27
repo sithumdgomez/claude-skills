@@ -198,19 +198,22 @@ def pdf_lines(path: Path) -> tuple[list[str], str]:
 def header_end(lines: list[str]) -> int:
     """Index of the line where the transactions start (the header is everything before), within
     the first 40 lines: the table heading ("Date ... Balance"), or a line that starts with a date
-    and carries an amount, an opening balance, or a description whose amount is on the next line
-    (CommBank prints "22 May Transfer to ..." then "Bill 10.00 $20.00 CR")."""
+    and carries an amount, an opening balance, or a description whose amount comes on one of the
+    next 3 lines (CommBank: "16 Dec MCDONALDS ..." / "Card xx1234" / "Value Date: ... 13.10")."""
     for i, line in enumerate(lines[:40]):
         if _TABLE_HEAD.search(line):
             return i
         m = _DATE_START.match(line)
         if not m or _RANGE_REST.match(line[m.end():]):
             continue
-        rest = line[m.end():]
-        nxt = lines[i + 1] if i + 1 < len(lines) else ""
-        if (_AMOUNT.search(line) or _OPENING.search(line)
-                or (len(re.findall(r"[A-Za-z]{2,}", rest)) >= 2 and _AMOUNT.search(nxt) and not _DATE_START.match(nxt))):
+        if _AMOUNT.search(line) or _OPENING.search(line):
             return i
+        if len(re.findall(r"[A-Za-z]{2,}", line[m.end():])) >= 2:
+            for nxt in lines[i + 1:i + 4]:
+                if _DATE_START.match(nxt):
+                    break
+                if _AMOUNT.search(nxt):
+                    return i
     return min(len(lines), 40)
 
 

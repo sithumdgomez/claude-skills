@@ -198,9 +198,11 @@ Full strategy: `reference/model-and-tokens.md`. The short version:
   name or folder. `import_statements.py` reads PDF headers up to the first transaction and
   only the "account" column of CSVs, for this reason.
 - **CommBank PDFs:** bold labels can be "fake bold" (each letter printed twice, read as
-  `AAccccoouunntt`), and a transaction's amount sits on its second line ("22 May Transfer to
-  ..." / "Bill 10.00 $20.00 CR"). `parsers/_pdf_helpers.dedupe()` fixes the first (`page_lines`
-  uses it); a CBA parser must join each date line with the lines below it until the amount.
+  `AAccccoouunntt`), and a transaction runs over 2–3 lines with the amount on the last
+  ("16 Dec MCDONALDS ..." / "Card xx1234" / "Value Date: 13/12/2022  13.10  $104.14 CR").
+  `parsers/_pdf_helpers.dedupe()` fixes the first (`page_lines` uses it); a CBA parser must join
+  each date line with the lines below it up to the one with the amount. Pages after the first
+  repeat a small header (statement number, account number) above the table.
   `import_statements.py` ends the header at the "Date ... Balance" table heading, so a
   debit-card number on a transaction line ("Card xx9999") is never taken for the account.
 - **Some statements show no account number in their header** (seen with CommBank
