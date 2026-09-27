@@ -185,6 +185,14 @@ Full strategy: `reference/model-and-tokens.md`. The short version:
   `people.csv`. Someone who only ever pays the owner is flagged as possible income, not a
   loan.
 - **Cash deposits** always go to review, because they could be income.
+- **Clients paying into personal accounts** (and part-payments landing "here and there") are
+  normal for a sole trader. Every account is in the ledger and every unexplained money-in goes
+  to review, whatever the account's default use. Never write a rule like "money in on a
+  personal account is personal". Once the owner marks a person as a Business customer, all
+  their payments, in any account, are business income.
+- **Cash that never reached a bank** is in no statement. The owner lists it (and swaps) in
+  `income_not_in_bank.csv`; `build_outputs.py` copies it to a "Not in the bank" tab, outside
+  the Ledger and every total. Claude never fills in or estimates its amounts.
 - **Bank interest earned is taxable income.** It's listed per account on the Personal tab.
 - **ATO refunds are not income; ATO payments are not expenses** (type Tax). If the owner is
   GST-registered, BAS payments need their own treatment: ask the accountant.
@@ -192,9 +200,9 @@ Full strategy: `reference/model-and-tokens.md`. The short version:
   from the set. The real spending is on that account's statements (Wise and PayPal let you
   download them). Add them, or use type Outside account.
 - **Swaps (barter) and free work never appear in bank statements.** The ATO generally treats a
-  business swap like a sale, at the value of what was received. Keep swaps on a separate list
-  for the accountant (who, when, what was exchanged, rough value); never put their estimated
-  values in the ledger. Free work has no income to record. Part-payments are simply income
+  business swap like a sale, at the value of what was received. The owner lists swaps in
+  `income_not_in_bank.csv` (kind Swap: who, when, what was exchanged, rough value); never put
+  their estimated values in the ledger. Free work has no income to record. Part-payments are simply income
   when each one lands.
 - **A change of structure (sole trader -> company)** ends the sole trader's ledger on the
   cut-over date. Company money goes through the company's own accounts and books (usually
@@ -207,6 +215,12 @@ Full strategy: `reference/model-and-tokens.md`. The short version:
   Everything else paid through Afterpay is personal.
 - **Payment processors** (Stripe, Square, PayPal) pay out net of fees. The accountant needs
   gross income, so flag it and get the processor reports.
+- **Gig platforms** (Uber Eats, DoorDash, Menulog, Airtasker) pay a contractor, not an
+  employee: it is business income, paid out net of the platform's fees. Each platform has a
+  yearly tax summary (gross earnings, fees, often kilometres driven) for the accountant. Keep it
+  in `evidence/`; the ledger still takes its amounts only from the bank statements. The
+  vehicle and phone used for the work are usually part business, even if the owner thinks of
+  them as personal: ask the accountant.
 - **Transaction lines name the owner's other accounts** ("TRANSFER FROM xx4321"). Never work
   out which account a statement belongs to from its transactions; only from its header, file
   name or folder. `import_statements.py` reads PDF headers up to the first transaction and

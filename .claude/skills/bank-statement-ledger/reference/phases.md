@@ -36,6 +36,7 @@ in this job.
   - Put the owner's names as they appear on transfers into `own_names` in
     `config/project.json`, e.g. `["J CITIZEN", "JANE CITIZEN"]`.
   - Answer `notes_for_claude.md`.
+  - List cash kept and swaps in `income_not_in_bank.csv` (any time before 6.1).
 - **Why it matters:** Claude can't guess these, and transfer matching depends on them.
 - **Check:** every folder in `00_raw/` is some account's `raw_folder`.
 
@@ -201,6 +202,8 @@ in this job.
   - Loans
   - Reconciliation
   - Open questions
+  - Not in the bank (the owner's `income_not_in_bank.csv`: cash kept and swaps, outside every
+    total)
 - **Checks:**
   - **A:** the ledger ties to the balanced statements per account per FY.
   - **B:** every row has one allowed type, and there are no duplicate IDs.
@@ -215,6 +218,7 @@ in this job.
   - large one-offs
   - loans that look like income
   - business income landing in personal accounts
+  - cash or swap income the notes mention but `income_not_in_bank.csv` doesn't list
   - expected items that are missing (a phone bill that stops, no interest on a savings
     account)
 - **Out:** `review/qa_findings.md`. Each finding is fixed through rules or decisions, or added

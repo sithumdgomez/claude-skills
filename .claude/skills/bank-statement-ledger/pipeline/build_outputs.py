@@ -14,7 +14,11 @@ Writes:
   output/master_ledger.csv   every row, all years
   output/FY2024.xlsx ...     one workbook per financial year with the tabs README, Ledger,
                              Business P&L, Personal, Mixed use, Internal transfers, Loans,
-                             Reconciliation, Open questions
+                             Reconciliation, Open questions, Not in the bank
+Reads the owner's income_not_in_bank.csv (cash kept, swaps) if present and copies it,
+per FY, to the "Not in the bank" tab. Those amounts are the owner's own figures: they
+never enter the Ledger or any total. A row with an unreadable date, kind or amount
+stops the build.
 Totals are live SUMIFS formulas over the Ledger tab (change a category and they update).
 Next to each is the value this script calculated, and a Check column that is 0 while
 they agree - a visible proof the formulas and the data match.
@@ -26,8 +30,8 @@ import json
 import sys
 from decimal import Decimal
 
-from common import (LOAN_TYPES, PNL_TYPES, TRANSFER_TYPES, TYPES, fmt_money, fy_bounds, iso,
-                    load_accounts, load_project, money, p, read_csv, write_csv)
+from common import (LOAN_TYPES, PNL_TYPES, TRANSFER_TYPES, TYPES, fmt_money, fy_bounds, fy_of, iso,
+                    load_accounts, load_project, mask, money, p, parse_money, read_csv, write_csv)
 
 ZERO = Decimal("0.00")
 MONEY_FMT = '#,##0.00;[Red]-#,##0.00'
@@ -55,12 +59,40 @@ TYPE_HELP = {
     "Outside account": "To/from an account whose statements are not in this set.",
     "Unknown": "Not classified - listed under Open questions.",
 }
+NOT_IN_BANK = "income_not_in_bank.csv"
+NIB_KINDS = ("Cash", "Swap", "Other")
 
 
 def fail(msg):
     print(f"FAIL: {msg}")
     print("Nothing was written. Fix the cause and re-run.")
     sys.exit(1)
+
+
+def load_not_in_bank(fsm: int) -> list[dict] | None:
+    """The owner's list of income that never went through a bank account. None if there is no file."""
+    f = p(NOT_IN_BANK)
+    if not f.exists():
+        return None
+    out = []
+    for n, r in enumerate(read_csv(f), 2):
+        if not any(r.values()):
+            continue
+        d = r.get("date", "")
+        try:
+            day = dt.date.fromisoformat(d if len(d) == 10 else d + "-01")
+        except ValueError:
+            fail(f"{NOT_IN_BANK} line {n}: date {d!r} - use YYYY-MM-DD, or YYYY-MM if you only know the month")
+        kind = r.get("kind", "").capitalize()
+        if kind not in NIB_KINDS:
+            fail(f"{NOT_IN_BANK} line {n}: kind {r.get('kind', '')!r} - use one of {', '.join(NIB_KINDS)}")
+        try:
+            amt = parse_money(r.get("amount"))
+        except ValueError:
+            fail(f"{NOT_IN_BANK} line {n}: amount {r.get('amount')!r} is not a number (leave it blank if unknown)")
+        out.append({"date": d, "_day": day, "fy": fy_of(day, fsm), "kind": kind, "amount": amt,
+                    **{k: mask(r.get(k, "")) for k in ("who", "what_for", "how_you_know", "note")}})
+    return out
 
 
 def main():
@@ -118,6 +150,7 @@ def main():
                  and by_id.get(partner_of.get(x["txn_id"]), {}).get("fy") == fy), ZERO)
         if s != 0:
             fy_net_problems.append(f"{fy}: {fmt_money(s)}")
+    nib = load_not_in_bank(fsm)
     checks.append(("C", "Matched transfer pairs net to $0.00 within each FY",
                    "PASS" if not fy_net_problems and not pair_problems else
                    f"CHECK: {'; '.join(fy_net_problems)} {'overridden pairs: ' + ', '.join(pair_problems[:5]) if pair_problems else ''}"))
@@ -129,12 +162,15 @@ def main():
     fys = sorted({x["fy"] for x in ledger})
     for fy in fys:
         build_fy(fy, cfg, fsm, accounts, cats, people, [x for x in master if x["fy"] == fy], master,
-                 matches, recon, unmatched, clog, checks, by_id)
+                 matches, recon, unmatched, clog, checks, by_id, nib)
+    stray = sorted({x["fy"] for x in nib or []} - set(fys))
+    if stray:
+        print(f"Note: {NOT_IN_BANK} has items in {', '.join(stray)}, which has no ledger - they are in no workbook")
     print(f"Checks: " + "; ".join(f"{c[0]} {c[2]}" for c in checks))
     print(f"Wrote output/master_ledger.csv ({len(master)} rows) and " + ", ".join(f"output/{f}.xlsx" for f in fys))
 
 
-def build_fy(fy, cfg, fsm, accounts, cats, people, rows, master, matches, recon, unmatched, clog, checks, by_id):
+def build_fy(fy, cfg, fsm, accounts, cats, people, rows, master, matches, recon, unmatched, clog, checks, by_id, nib):
     from openpyxl import Workbook
     from openpyxl.styles import Alignment, Font, PatternFill
     from openpyxl.utils import get_column_letter
@@ -511,6 +547,34 @@ def build_fy(fy, cfg, fsm, accounts, cats, people, rows, master, matches, recon,
         r += 1
     widths(oq, [34, 16, 11, 14, 90])
 
+    # ---- Not in the bank (the owner's own list; never in the Ledger or a total)
+    nb = wb.create_sheet("Not in the bank")
+    nb["A1"] = "Income that never went through a bank account - the owner's own list (cash kept, swaps)"
+    nb["A1"].font = bold
+    nb["A2"] = ("Not from the bank statements, and NOT in the Ledger or any total in this pack. Amounts are the "
+                "owner's figures; for a swap, the owner's rough value of what they received. The accountant decides "
+                "how each item is treated.")
+    header(nb, 4, ["Date", "Kind", "Who", "What for", "Amount or value", "How the owner knows", "Note"])
+    mine = sorted((x for x in nib or [] if x["fy"] == fy), key=lambda x: x["_day"])
+    r = 5
+    for x in mine:
+        nb.append([x["date"], x["kind"], x["who"], x["what_for"], x["amount"], x["how_you_know"], x["note"]])
+        nb[f"E{r}"].number_format = MONEY_FMT
+        r += 1
+    if nib is None:
+        nb.cell(5, 1, f"No list provided ({NOT_IN_BANK} is not in the project folder).")
+        refs["not_in_bank"] = '"no list provided"'
+    else:
+        if not mine:
+            nb.cell(5, 1, "The owner listed nothing for this FY.")
+        end_ = max(r - 1, 5)
+        for i, kind in enumerate(NIB_KINDS):
+            nb.cell(end_ + 2 + i, 4, f"Total {kind.lower()}")
+            c = nb.cell(end_ + 2 + i, 5, f'=SUMIF(B5:B{end_},"{kind}",E5:E{end_})')
+            c.number_format = MONEY_FMT
+        refs["not_in_bank"] = f"SUM('Not in the bank'!E5:E{end_})"
+    widths(nb, [11, 8, 24, 36, 16, 30, 40])
+
     # ---- README (first tab)
     rd = wb.create_sheet("README", 0)
     needs = sum(1 for x in rows if x["review_status"] == "Needs review")
@@ -539,6 +603,7 @@ def build_fy(fy, cfg, fsm, accounts, cats, people, rows, master, matches, recon,
                        ("Owner drawings (business -> personal)", refs["drawings"]),
                        ("Owner contributions (personal -> business)", refs["contributions"]),
                        ("Informal loans: net owed to you at 30 June", refs["loans"]),
+                       ("Cash kept and swaps - owner's list, NOT included above (Not in the bank tab)", refs["not_in_bank"]),
                        ("Open questions and exceptions", f"COUNTA('Open questions'!A4:A{max(len(items) + 3, 4)})")]:
         rd.cell(r, 1, label)
         c = rd.cell(r, 2, f"={ref}")
@@ -553,7 +618,8 @@ def build_fy(fy, cfg, fsm, accounts, cats, people, rows, master, matches, recon,
                        ("Internal transfers", "Matched pairs between the owner's own accounts (excluded from income and spending)."),
                        ("Loans", "Informal loans with friends and family, net per person."),
                        ("Reconciliation", "Opening + transactions = closing for every statement; account balances."),
-                       ("Open questions", "Everything not settled, for the accountant or the owner.")]:
+                       ("Open questions", "Everything not settled, for the accountant or the owner."),
+                       ("Not in the bank", "The owner's own list of cash kept and swaps. Not from the statements; in no total.")]:
         r += 1
         rd.cell(r, 1, name)
         rd.cell(r, 2, what)

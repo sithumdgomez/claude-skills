@@ -59,7 +59,7 @@ def init(target: Path, update_scripts: bool = False, allow_remote: bool = False)
     for f in sorted((SKILL / "pipeline" / "parsers").glob("_*.py")):
         copy(f, target / "scripts" / "parsers" / f.name, update_scripts, report)
     t = SKILL / "templates"
-    for name in ["CLAUDE.md", "PROGRESS.md", "DECISIONS.md", "notes_for_claude.md"]:
+    for name in ["CLAUDE.md", "PROGRESS.md", "DECISIONS.md", "notes_for_claude.md", "income_not_in_bank.csv"]:
         copy(t / name, target / name, False, report)
     for f in sorted((t / "config").iterdir()):
         copy(f, target / "config" / f.name, False, report)

@@ -396,6 +396,26 @@ def main():
     check("FY2023 pack status is FINAL after review", str(wb["README"]["A2"].value).startswith("Status: FINAL"),
           wb["README"]["A2"].value)
 
+    # ---- the owner's list of income that never reached a bank
+    nib = root / "income_not_in_bank.csv"
+    check("a new project starts with an empty not-in-the-bank list", nib.read_text().strip().startswith("date,kind"))
+    nib.write_text("date,kind,who,what_for,amount,how_you_know,note\n"
+                   "2022-09-14,Cash,Demo Client,logo design,$150.00,invoice DEMO-7,paid on the day\n"
+                   "2023-03,swap,Demo Mechanic,website,,,car service in return\n"
+                   "2023-08-02,Cash,Demo Client,flyer,80,message,\n")
+    code, out = run(root, "build_outputs.py")
+    ws = load_workbook(root / "output" / "FY2023.xlsx")["Not in the bank"]
+    listed = [(ws.cell(r, 1).value, ws.cell(r, 2).value, ws.cell(r, 5).value) for r in range(5, 7)]
+    check("cash and swaps from the owner's list land on the right FY's Not in the bank tab, outside the Ledger",
+          code == 0 and listed == [("2022-09-14", "Cash", Decimal("150.00")), ("2023-03", "Swap", None)]
+          and ws.cell(7, 1).value is None and ws["E9"].value == '=SUMIF(B5:B6,"Swap",E5:E6)'
+          and len(rows(root / "output" / "master_ledger.csv")) == len(cl),
+          f"{listed} {out[-300:]}")
+    nib.write_text(nib.read_text() + "14/09/2022,Cash,Demo Client,logo,10,,\n")
+    code, out = run(root, "build_outputs.py")
+    check("an unreadable date in the owner's list stops the build", code == 1 and "line 5" in out, out[-200:])
+    nib.write_text("date,kind,who,what_for,amount,how_you_know,note\n")
+
     # ---- tampering after classification must block the build
     cf = root / "03_data" / "classified.csv"
     data = rows(cf)

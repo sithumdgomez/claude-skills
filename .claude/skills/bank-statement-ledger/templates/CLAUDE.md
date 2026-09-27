@@ -55,7 +55,8 @@ Each script's docstring explains its inputs, outputs and checks. Read the docstr
 - **Claude:** parsers, payee rules (`config/rules.csv`), description clean-up, spotting
   patterns, the final accountant-style review.
 - **Owner:** people and loans, business vs personal when unclear, business %, anything on the
-  review list, sign-offs. Owner decisions (`config/decisions.csv`) always beat Claude's rules.
+  review list, sign-offs, and `income_not_in_bank.csv` (cash kept, swaps: the owner's own
+  figures, never typed or estimated by Claude). Owner decisions (`config/decisions.csv`) always beat Claude's rules.
 - **Accountant:** final business %, deductibility, depreciation, anything marked Ask accountant.
 
 ## Model per task
