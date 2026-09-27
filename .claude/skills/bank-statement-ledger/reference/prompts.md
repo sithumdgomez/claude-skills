@@ -11,7 +11,10 @@ explicit.
 1. `pip install pdfplumber openpyxl`
 2. `python <skill>/tools/init_project.py ~/bookkeeping`. Use a local folder, not inside any
    repo or synced folder.
-3. Copy the statements into `00_raw/<bank>/<account>/`, then run `chmod -R a-w 00_raw`.
+3. Copy the statements into `00_raw/<bank>/<account>/`, or, if they're already in a folder,
+   run `python3 scripts/import_statements.py "<that folder>" --survey`, fill in
+   `default_use` in the drafted `config/accounts.csv`, and run it again with `--apply`.
+   Then run `chmod -R a-w 00_raw`.
 4. Fill in `config/accounts.csv`, `own_names` in `config/project.json`, and
    `notes_for_claude.md`.
 5. Optional: download CSV exports from each bank as far back as they allow.

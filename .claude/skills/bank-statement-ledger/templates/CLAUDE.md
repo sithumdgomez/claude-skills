@@ -40,6 +40,7 @@ that the accountant can use without redoing the work. The method is the
 ## Pipeline
 
 ```
+python scripts/import_statements.py "<folder>" --survey   # only if statements are elsewhere; then dry run, then --apply
 python scripts/inventory.py          # IDs, masked copies, coverage guess
 python scripts/dump_sample.py S001   # masked sample of one layout (for writing a parser)
 python scripts/parse_all.py          # run the bank parsers

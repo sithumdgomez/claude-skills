@@ -10,7 +10,7 @@
 ## Checklist (tick only when the step's check has passed)
 
 ### Phase 0 - Set up
-- [ ] 0.1 Statements copied into `00_raw/<bank>/<account>/`, folder made read-only
+- [ ] 0.1 Statements in `00_raw/<bank>/<account>/` (by hand or `import_statements.py`), no UNSORTED left, folder made read-only
 - [ ] 0.2 `config/accounts.csv`, `config/project.json` (own_names!), `notes_for_claude.md` filled in by owner
 - [ ] 0.3 Categories reviewed by owner and sent to the accountant for a yes
 - [ ] 0.4 `inventory.py` run - no unmapped files, missing statements requested from banks

@@ -16,6 +16,13 @@ in this job.
 ### 0.1 Collect the files (owner)
 - **Do:** create the project with `tools/init_project.py`. Copy every statement into
   `00_raw/<bank>/<account>/` and make the folder read-only (`chmod -R a-w 00_raw`).
+  If the statements already sit in another folder, let the script sort them:
+  1. `python3 scripts/import_statements.py "<folder>" --survey` lists the account endings
+     and banks it finds, and drafts `config/accounts.csv`. The owner replaces each CHOOSE
+     with business or personal.
+  2. Run the same command without `--survey` for a dry run that shows where every file
+     would go, then again with `--apply` to copy them. The source folder is never changed.
+  3. Drag any UNSORTED files into place by hand.
   Optional: where a bank's CSV export reaches back far enough, download CSVs too. They
   extract more cleanly, and `combine.py` removes the overlap with the PDFs.
 - **Out:** `00_raw/`

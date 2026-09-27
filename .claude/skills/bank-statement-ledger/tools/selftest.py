@@ -87,6 +87,28 @@ def main():
     subprocess.run([sys.executable, str(TOOLS / "make_demo.py"), str(root)], capture_output=True, text=True, check=True)
     unit_tests(root)
 
+    # ---- importing from a messy folder: flatten the demo's statements, keep one file that has
+    #      no account number in a named folder, add a duplicate, then sort them back into 00_raw
+    src = tmp / "messy source" / "Bank Statements"
+    (src / "Demo Bank" / "Everyday").mkdir(parents=True)
+    original = {}
+    for f in (root / "00_raw").rglob("*.*"):
+        original[f.name] = f.parent.relative_to(root / "00_raw").as_posix()
+        dest = src / "Demo Bank" / "Everyday" if f.name.startswith("export") else src
+        shutil.copy2(f, dest / f.name)
+    shutil.copy2(next((root / "00_raw" / "DemoBank" / "Business").glob("*.pdf")), src / "copy of a statement.pdf")
+    (src / "notes.txt").write_text("not a statement")
+    shutil.rmtree(root / "00_raw")
+    (root / "00_raw").mkdir()
+    code, out = run(root, "import_statements.py", str(src), "--apply")
+    placed = {f.name: f.parent.relative_to(root / "00_raw").as_posix() for f in (root / "00_raw").rglob("*.*")}
+    check("import_statements puts every statement in its account folder (transfer lines don't mislead it)",
+          code == 0 and placed == original, f"{out[-400:]} diff={set(placed.items()) ^ set(original.items())}")
+    code, out = run(root, "import_statements.py", str(src), "--apply")
+    check("import_statements is safe to re-run (nothing copied twice)",
+          sum(1 for _ in (root / "00_raw").rglob("*.*")) == len(original))
+    run(root, "inventory.py")
+
     code, out = run(root, "parse_all.py")
     check("all demo statements parse", code == 0, out[-300:])
     code, out = run(root, "run_all.py")
