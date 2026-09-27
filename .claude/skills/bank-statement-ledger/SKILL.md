@@ -52,7 +52,7 @@ the other project folders, which live in the user's project folder once it's set
 | "Show me how it works" | `python ${CLAUDE_SKILL_DIR}/tools/make_demo.py /tmp/demo-books`, then `parse_all.py` and `run_all.py` inside it |
 | Changed a pipeline script | `python ${CLAUDE_SKILL_DIR}/tools/selftest.py` must print 21/21 (or more) before it's used on real data |
 
-Requires Python 3.10+ and `pip install pdfplumber openpyxl` (plus `reportlab` for the demo
+Requires Python 3.9+ and `pip install pdfplumber openpyxl` (plus `reportlab` for the demo
 and self-test only).
 
 ## Who does what (two layers, kept apart)
